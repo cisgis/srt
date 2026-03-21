@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Steel River Technologies{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Sidebar ── -->
+  <nav class="sidebar">
+    <div class="sidebar-brand" style="justify-content: center; padding: 12px 10px;">
+      <img src="/static/img/logo.png" alt="Steel River Technologies" style="max-width: 100%; max-height: 100px; width: auto; height: auto; object-fit: contain;">
+    </div>
+
+    <div class="sidebar-group">
+      <div class="sidebar-label">Stock</div>
+      <a href="/inventory/" class="sidebar-item {% if active=='inventory' %}active{% endif %}">
+        Inventory
+      </a>
+      <a href="/vendors/" class="sidebar-item {% if active=='vendors' %}active{% endif %}">
+        Vendors
+      </a>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-group">
+      <div class="sidebar-label">Billing</div>
+      <a href="/quotes/" class="sidebar-item {% if active=='quotes' %}active{% endif %}">
+        Quotes
+      </a>
+      <a href="/packing-slips/" class="sidebar-item {% if active=='packing_slips' %}active{% endif %}">
+        Packing Slips
+      </a>
+      <a href="/invoices/" class="sidebar-item {% if active=='invoices' %}active{% endif %}">
+        Invoices
+      </a>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-group">
+      <div class="sidebar-label">Transactions</div>
+      <a href="/transactions/customer/" class="sidebar-item {% if active=='txn_customer' %}active{% endif %}">
+        Customer
+      </a>
+      <a href="/transactions/internal/" class="sidebar-item {% if active=='txn_internal' %}active{% endif %}">
+        Internal
+      </a>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-group">
+      <div class="sidebar-label">People</div>
+      <a href="/clients/" class="sidebar-item {% if active=='clients' %}active{% endif %}">
+        Clients
+      </a>
+    </div>
+  </nav>
+
+  <!-- ── Main ── -->
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title">{% block page_title %}{% endblock %}</div>
+      </div>
+      <div class="topbar-actions">{% block topbar_actions %}{% endblock %}</div>
+    </div>
+    <div class="content">
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+
+</div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

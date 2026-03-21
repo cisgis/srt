@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit" if product else "New Product" }} — SRT{% endblock %}
+{% block page_title %}{{ "Edit Product" if product else "New Product" }}{% endblock %}
+{% block page_sub %}{{ product.parts_number if product else "Add a new serialized part to inventory" }}{% endblock %}
+{% set active = "inventory" %}
+
+{% block topbar_actions %}
+<a href="/inventory/" class="btn">← Back</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:860px;">
+  <form method="post" enctype="multipart/form-data">
+
+    <div style="margin-bottom:20px;">
+      <div class="sidebar-label" style="margin-bottom:10px;">Identification</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Parts Number *</label>
+          <input type="text" name="parts_number" value="{{ product.parts_number if product else '' }}"
+                 {{ "readonly" if product }} required>
+        </div>
+        <div class="form-group">
+          <label>Vendor</label>
+          <select name="vendor_id">
+            <option value="">— None —</option>
+            {% for v in vendors %}
+            <option value="{{ v.vendor_id }}" {% if product and product.vendor_id==v.vendor_id %}selected{% endif %}>
+              {{ v.vendor_name }} ({{ v.vendor_id }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Product / Service Description</label>
+          <input type="text" name="product_service_description"
+                 value="{{ product.product_service_description if product else '' }}">
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div class="sidebar-label" style="margin-bottom:10px;">Pricing</div>
+      <div class="form-grid-3">
+        <div class="form-group">
+          <label>Cost Price ($)</label>
+          <input type="number" step="0.01" name="cost_price" value="{{ product.cost_price if product else '' }}">
+        </div>
+        <div class="form-group">
+          <label>Resale Price ($)</label>
+          <input type="number" step="0.01" name="resale_price" value="{{ product.resale_price if product else '' }}">
+        </div>
+        <div class="form-group">
+          <label>List Price / Rental ($)</label>
+          <input type="number" step="0.01" name="list_price" value="{{ product.list_price if product else '' }}">
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div class="sidebar-label" style="margin-bottom:10px;">Dates</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Purchase Date</label>
+          <input type="date" name="purchase_date" value="{{ product.purchase_date if product else '' }}">
+        </div>
+        <div class="form-group">
+          <label>Resale / Sales Date</label>
+          <input type="date" name="resale_date" value="{{ product.resale_date if product else '' }}">
+        </div>
+        <div class="form-group">
+          <label>Recertification Date</label>
+          <input type="date" name="recertification_date" value="{{ product.recertification_date if product else '' }}">
+        </div>
+        <div class="form-group">
+          <label>Certification Expiration Date</label>
+          <input type="date" name="certification_expiration_date"
+                 value="{{ product.certification_expiration_date if product else '' }}">
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div class="sidebar-label" style="margin-bottom:10px;">Physical</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Weight (lbs)</label>
+          <input type="number" step="0.01" name="weight" value="{{ product.weight if product else '' }}">
+        </div>
+        <div class="form-group">
+          <label>Dimensions (L × W × H)</label>
+          <input type="text" name="dimensions"
+                 value="{{ product.dimensions if product else '' }}">
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div class="sidebar-label" style="margin-bottom:10px;">Status & Location</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Status</label>
+          <select name="status">
+            {% for s in status_options %}
+            <option value="{{ s }}" {% if product and product.status==s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Location</label>
+          <input type="text" name="location" value="{{ product.location if product else '' }}">
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:24px;">
+      <div class="sidebar-label" style="margin-bottom:10px;">Documents</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>MTR (Material Testing Report PDF)</label>
+          {% if product and product.mtr_filename %}
+          <div style="font-size:11px;color:var(--accent);margin-bottom:4px;">
+            Current: <a href="/inventory/file/{{ product.mtr_filename }}" target="_blank">{{ product.mtr_filename }}</a>
+          </div>
+          {% endif %}
+          <input type="file" name="mtr_file" accept=".pdf">
+        </div>
+        <div class="form-group">
+          <label>Drawing (Technical Diagram PDF)</label>
+          {% if product and product.drawing_filename %}
+          <div style="font-size:11px;color:var(--accent);margin-bottom:4px;">
+            Current: <a href="/inventory/file/{{ product.drawing_filename }}" target="_blank">{{ product.drawing_filename }}</a>
+          </div>
+          {% endif %}
+          <input type="file" name="drawing_file" accept=".pdf">
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;">
+      <button type="submit" class="btn btn-primary">
+        {{ "Save Changes" if product else "Add to Inventory" }}
+      </button>
+      <a href="/inventory/" class="btn">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

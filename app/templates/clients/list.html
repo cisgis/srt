@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Clients — SRT{% endblock %}
+{% block page_title %}Clients{% endblock %}
+{% block page_sub %}Customer and well records{% endblock %}
+{% set active = "clients" %}
+{% block topbar_actions %}
+<button class="btn btn-primary" onclick="document.getElementById('add-modal').classList.add('open')">+ Add Client</button>
+{% endblock %}
+
+{% block content %}
+{% if clients %}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Client ID</th><th>Customer Name</th><th>Well Name</th><th>Well Address</th><th>Billing Address</th><th></th></tr></thead>
+  <tbody>
+  {% for c in clients %}
+  <tr>
+    <td style="font-family:var(--mono);font-size:12px;">{{ c.client_id }}</td>
+    <td>{{ c.customer_name }}</td>
+    <td>{{ c.well_name or "—" }}</td>
+    <td>{{ c.well_address or "—" }}</td>
+    <td>{{ c.billing_address or "—" }}</td>
+    <td style="display:flex;gap:6px;">
+      <button class="btn btn-sm" onclick="openEdit('{{ c.client_id }}','{{ c.customer_name|replace("'","\\'")|e }}','{{ (c.well_name or "")|replace("'","\\'")|e }}','{{ (c.well_address or "")|replace("'","\\'")|e }}','{{ (c.billing_address or "")|replace("'","\\'")|e }}')">Edit</button>
+      <form method="post" action="/clients/{{ c.client_id }}/delete" onsubmit="return confirm('Delete this client?')">
+        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="empty-state">No clients yet.</div>
+{% endif %}
+
+<!-- Add Modal -->
+<div class="modal-overlay" id="add-modal">
+  <div class="modal">
+    <div class="modal-title">Add Client</div>
+    <form method="post" action="/clients/new">
+      <div class="form-group" style="margin-bottom:10px;"><label>Client ID *</label><input type="text" name="client_id" required></div>
+      <div class="form-group" style="margin-bottom:10px;"><label>Customer Name *</label><input type="text" name="customer_name" required></div>
+      <div class="form-group" style="margin-bottom:10px;"><label>Well Name</label><input type="text" name="well_name"></div>
+      <div class="form-group" style="margin-bottom:10px;"><label>Well Address</label><input type="text" name="well_address"></div>
+      <div class="form-group" style="margin-bottom:10px;"><label>Billing Address</label><textarea name="billing_address" rows="2"></textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="document.getElementById('add-modal').classList.remove('open')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add Client</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <div class="modal-title">Edit Client</div>
+    <form method="post" id="edit-form">
+      <div class="form-group" style="margin-bottom:10px;"><label>Customer Name *</label><input type="text" name="customer_name" id="edit-name" required></div>
+      <div class="form-group" style="margin-bottom:10px;"><label>Well Name</label><input type="text" name="well_name" id="edit-well-name"></div>
+      <div class="form-group" style="margin-bottom:10px;"><label>Well Address</label><input type="text" name="well_address" id="edit-well-addr"></div>
+      <div class="form-group" style="margin-bottom:10px;"><label>Billing Address</label><textarea name="billing_address" id="edit-billing" rows="2"></textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="document.getElementById('edit-modal').classList.remove('open')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openEdit(id, name, wellName, wellAddr, billing) {
+  document.getElementById("edit-form").action = "/clients/" + id + "/edit";
+  document.getElementById("edit-name").value      = name;
+  document.getElementById("edit-well-name").value = wellName;
+  document.getElementById("edit-well-addr").value = wellAddr;
+  document.getElementById("edit-billing").value   = billing;
+  document.getElementById("edit-modal").classList.add("open");
+}
+</script>
+{% endblock %}

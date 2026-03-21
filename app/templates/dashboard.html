@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — SRT{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_sub %}Steel River Technologies — Inventory & Billing{% endblock %}
+
+{% block content %}
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-card-num">{{ stats.total_products }}</div>
+    <div class="stat-card-label">Total products</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-num">{{ stats.available }}</div>
+    <div class="stat-card-label">Available</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-num">{{ stats.open_quotes }}</div>
+    <div class="stat-card-label">Quotes</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-num">{{ stats.open_pls }}</div>
+    <div class="stat-card-label">Packing slips</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-num">{{ stats.open_invoices }}</div>
+    <div class="stat-card-label">Invoices</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-num">{{ stats.total_clients }}</div>
+    <div class="stat-card-label">Clients</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+  <div class="card">
+    <div class="card-title">Recent Quotes</div>
+    {% if recent_quotes %}
+    <table>
+      <thead><tr><th>Quote No.</th><th>Client</th><th>Date</th></tr></thead>
+      <tbody>
+      {% for q in recent_quotes %}
+      <tr>
+        <td><a href="/quotes/{{ q.quote_number }}" class="doc-num">{{ q.quote_number }}</a></td>
+        <td>{{ q.customer_name or "—" }}</td>
+        <td>{{ q.quote_date }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No quotes yet</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Recent Packing Slips</div>
+    {% if recent_pls %}
+    <table>
+      <thead><tr><th>PL No.</th><th>Client</th><th>Date</th></tr></thead>
+      <tbody>
+      {% for pl in recent_pls %}
+      <tr>
+        <td><a href="/packing-slips/{{ pl.packing_slip_number }}" class="doc-num">{{ pl.packing_slip_number }}</a></td>
+        <td>{{ pl.customer_name or "—" }}</td>
+        <td>{{ pl.packing_slip_date }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No packing slips yet</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

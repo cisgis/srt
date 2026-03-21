@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}New Internal Move — SRT{% endblock %}
+{% block page_title %}New Internal Move{% endblock %}
+{% block page_sub %}Relocate products between warehouses{% endblock %}
+{% set active = "txn_internal" %}
+{% block topbar_actions %}<a href="/transactions/internal/" class="btn">← Back</a>{% endblock %}
+
+{% block content %}
+<div style="max-width:700px;">
+<div class="card">
+<form method="post" id="int-form">
+  <input type="hidden" name="parts_json" id="parts_json" value="[]">
+  <div class="card-title">Move Details</div>
+  <div class="form-grid" style="margin-bottom:16px;">
+    <div class="form-group">
+      <label>From Location</label>
+      <input type="text" name="from_location" list="wh-list" placeholder="Origin warehouse">
+    </div>
+    <div class="form-group">
+      <label>To Location</label>
+      <input type="text" name="to_location" list="wh-list" placeholder="Destination warehouse">
+    </div>
+    <div class="form-group"><label>Ship Date</label><input type="date" name="move_date"></div>
+    <div class="form-group"><label>Received Date</label><input type="date" name="receive_date"></div>
+    <div class="form-group"><label>Moved By</label><input type="text" name="moved_by" placeholder="Person or carrier"></div>
+    <div class="form-group"><label>Reason</label><input type="text" name="reason"></div>
+  </div>
+
+  <datalist id="wh-list">{% for w in warehouses %}<option value="{{ w.ship_from }}">{% endfor %}</datalist>
+
+  <div class="section-header">
+    <h2>Parts to Move</h2>
+    <button type="button" class="btn btn-sm" onclick="addPart()">+ Add Part</button>
+  </div>
+  <div class="table-wrap" style="margin-bottom:16px;">
+  <table class="line-items-table">
+    <thead><tr><th>Part No.</th><th>Description</th><th>Current Location</th><th></th></tr></thead>
+    <tbody id="parts-body"></tbody>
+  </table>
+  </div>
+
+  <div style="display:flex;gap:8px;">
+    <button type="submit" class="btn btn-primary" onclick="prepareSubmit()">Create Move</button>
+    <a href="/transactions/internal/" class="btn">Cancel</a>
+  </div>
+</form>
+</div>
+</div>
+
+<script>
+const PRODUCTS = [
+  {% for p in products %}
+  { pn: {{ p.parts_number|tojson }}, desc: {{ (p.product_service_description or "")|tojson }}, loc: {{ (p.location or "")|tojson }} },
+  {% endfor %}
+];
+let parts = [];
+function addPart() { parts.push(""); renderParts(); }
+function removePart(i) { parts.splice(i,1); renderParts(); }
+function renderParts() {
+  const tbody = document.getElementById("parts-body");
+  tbody.innerHTML = "";
+  parts.forEach((pn, i) => {
+    const prod = PRODUCTS.find(p => p.pn === pn);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input type="text" list="pn-list" value="${pn}" style="width:150px;"
+          onchange="parts[${i}]=this.value; renderParts()"></td>
+      <td style="font-size:11px;color:var(--text2);">${prod?.desc||""}</td>
+      <td style="font-size:11px;color:var(--text2);">${prod?.loc||""}</td>
+      <td><button type="button" class="btn btn-sm btn-danger" onclick="removePart(${i})">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+function prepareSubmit() {
+  document.getElementById("parts_json").value = JSON.stringify(parts.filter(p=>p));
+}
+</script>
+<datalist id="pn-list">{% for p in products %}<option value="{{ p.parts_number }}">{% endfor %}</datalist>
+{% endblock %}

@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}{{ product.parts_number }} — SRT{% endblock %}
+{% block page_title %}{{ product.parts_number }}{% endblock %}
+{% block page_sub %}{{ product.product_service_description or "Product Detail" }}{% endblock %}
+{% set active = "inventory" %}
+
+{% block topbar_actions %}
+<a href="/inventory/" class="btn">← Inventory</a>
+{% endblock %}
+
+{% block content %}
+<div style="display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start;">
+
+  <!-- Left: edit form -->
+  <div class="card">
+    <div class="card-title">Product Details</div>
+    <form method="post" action="/inventory/{{ product.parts_number }}/edit" enctype="multipart/form-data">
+
+      <div style="margin-bottom:18px;">
+        <div class="sidebar-label" style="margin-bottom:8px;">Identification</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Parts Number</label>
+            <input type="text" value="{{ product.parts_number }}" readonly style="opacity:0.6;">
+          </div>
+          <div class="form-group">
+            <label>Vendor</label>
+            <select name="vendor_id">
+              <option value="">— None —</option>
+              {% for v in vendors %}
+              <option value="{{ v.vendor_id }}" {% if product.vendor_id==v.vendor_id %}selected{% endif %}>
+                {{ v.vendor_name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group full">
+            <label>Description</label>
+            <input type="text" name="product_service_description" value="{{ product.product_service_description or '' }}">
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:18px;">
+        <div class="sidebar-label" style="margin-bottom:8px;">Pricing</div>
+        <div class="form-grid-3">
+          <div class="form-group">
+            <label>Cost Price ($)</label>
+            <input type="number" step="0.01" name="cost_price" value="{{ product.cost_price or '' }}">
+          </div>
+          <div class="form-group">
+            <label>Resale Price ($)</label>
+            <input type="number" step="0.01" name="resale_price" value="{{ product.resale_price or '' }}">
+          </div>
+          <div class="form-group">
+            <label>List / Rental ($)</label>
+            <input type="number" step="0.01" name="list_price" value="{{ product.list_price or '' }}">
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:18px;">
+        <div class="sidebar-label" style="margin-bottom:8px;">Dates</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Purchase Date</label>
+            <input type="date" name="purchase_date" value="{{ product.purchase_date or '' }}">
+          </div>
+          <div class="form-group">
+            <label>Sales Date</label>
+            <input type="date" name="resale_date" value="{{ product.resale_date or '' }}">
+          </div>
+          <div class="form-group">
+            <label>Recertification Date</label>
+            <input type="date" name="recertification_date" value="{{ product.recertification_date or '' }}">
+          </div>
+          <div class="form-group">
+            <label>Cert Expiration Date</label>
+            <input type="date" name="certification_expiration_date" value="{{ product.certification_expiration_date or '' }}">
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:18px;">
+        <div class="sidebar-label" style="margin-bottom:8px;">Physical & Status</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Weight (lbs)</label>
+            <input type="number" step="0.01" name="weight" value="{{ product.weight or '' }}">
+          </div>
+          <div class="form-group">
+            <label>Dimensions</label>
+            <input type="text" name="dimensions" value="{{ product.dimensions or '' }}">
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select name="status">
+              {% for s in status_options %}
+              <option value="{{ s }}" {% if product.status==s %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Location</label>
+            <input type="text" name="location" value="{{ product.location or '' }}">
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <div class="sidebar-label" style="margin-bottom:8px;">Documents</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>MTR (PDF)</label>
+            {% if product.mtr_filename %}
+            <a href="/inventory/file/{{ product.mtr_filename }}" target="_blank"
+               style="font-size:11px;color:var(--accent);display:block;margin-bottom:4px;">
+              📄 {{ product.mtr_filename }}
+            </a>
+            {% endif %}
+            <input type="file" name="mtr_file" accept=".pdf">
+          </div>
+          <div class="form-group">
+            <label>Drawing (PDF)</label>
+            {% if product.drawing_filename %}
+            <a href="/inventory/file/{{ product.drawing_filename }}" target="_blank"
+               style="font-size:11px;color:var(--accent);display:block;margin-bottom:4px;">
+              📄 {{ product.drawing_filename }}
+            </a>
+            {% endif %}
+            <input type="file" name="drawing_file" accept=".pdf">
+          </div>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+    </form>
+  </div>
+
+  <!-- Right: info panel -->
+  <div>
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title">Summary</div>
+      <div class="detail-row">
+        <div class="detail-label">Status</div>
+        <div class="detail-value">
+          {% set s = product.status or "" %}
+          {% if s == "Available" %}<span class="badge badge-available">{{ s }}</span>
+          {% elif s == "Pending Certification" %}<span class="badge badge-pending">{{ s }}</span>
+          {% elif s == "On Loan" %}<span class="badge badge-on-loan">{{ s }}</span>
+          {% elif s == "Sold" %}<span class="badge badge-sold">{{ s }}</span>
+          {% elif s == "Damaged" %}<span class="badge badge-damaged">{{ s }}</span>
+          {% elif s == "In Repair" %}<span class="badge badge-in-repair">{{ s }}</span>
+          {% elif s == "Retired / Decommissioned" %}<span class="badge badge-retired">{{ s }}</span>
+          {% elif s == "Lost" %}<span class="badge badge-lost">{{ s }}</span>
+          {% else %}—{% endif %}
+        </div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Location</div>
+        <div class="detail-value">{{ product.location or "—" }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Vendor</div>
+        <div class="detail-value">{{ product.vendor_name or "—" }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">TCO</div>
+        <div class="detail-value">${{ "%.2f"|format(product.total_cost_of_ownership) if product.total_cost_of_ownership else "—" }}</div>
+      </div>
+    </div>
+
+    <!-- Customer transaction history -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title">Customer Transactions</div>
+      {% if ext_txns %}
+      {% for t in ext_txns %}
+      <div class="detail-row">
+        <div class="detail-label">{{ t.customer_name }} — {{ t.outbound_date or "?" }}</div>
+        <div class="detail-value" style="font-size:11px;color:var(--text2);">
+          Out: {{ t.outbound_date or "—" }} &nbsp;|&nbsp; In: {{ t.inbound_date or "open" }}
+        </div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div style="font-size:12px;color:var(--text3);">No customer transactions</div>
+      {% endif %}
+    </div>
+
+    <!-- Internal transaction history -->
+    <div class="card">
+      <div class="card-title">Internal Moves</div>
+      {% if int_txns %}
+      {% for t in int_txns %}
+      <div class="detail-row">
+        <div class="detail-label">{{ t.from_location or "?" }} → {{ t.to_location or "?" }}</div>
+        <div class="detail-value" style="font-size:11px;color:var(--text2);">{{ t.move_date or "—" }} &nbsp;|&nbsp; {{ t.moved_by or "" }}</div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div style="font-size:12px;color:var(--text3);">No internal moves</div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

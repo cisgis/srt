@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Quotes — SRT{% endblock %}
+{% block page_title %}Quotes{% endblock %}
+{% block page_sub %}{% endblock %}
+{% set active = "quotes" %}
+
+{% block topbar_actions %}
+<a href="/quotes/new" class="btn btn-primary">
+  <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  New Quote
+</a>
+{% endblock %}
+
+{% block content %}
+{% if quotes %}
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Quote No.</th>
+      <th>Client</th>
+      <th>Date</th>
+      <th>Expires</th>
+      <th>Ship To</th>
+      <th>Term</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for q in quotes %}
+  <tr>
+    <td><a href="/quotes/{{ q.quote_number }}" class="doc-num">{{ q.quote_number }}</a></td>
+    <td>{{ q.customer_name or "—" }}</td>
+    <td>{{ q.quote_date }}</td>
+    <td>{{ q.quote_expiration_date or "—" }}</td>
+    <td>{{ q.ship_to or "—" }}</td>
+    <td>{{ q.payment_term or "—" }}</td>
+    <td style="display:flex;gap:6px;">
+      <a href="/quotes/{{ q.quote_number }}" class="btn btn-sm">View</a>
+      <a href="/quotes/{{ q.quote_number }}/pdf" class="btn btn-sm" target="_blank">PDF</a>
+      <a href="/packing-slips/new?from_quote={{ q.quote_number }}" class="btn btn-sm">→ PL</a>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="empty-state">No quotes yet. <a href="/quotes/new" style="color:var(--accent)">Create one →</a></div>
+{% endif %}
+{% endblock %}

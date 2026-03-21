@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Packing Slips — SRT{% endblock %}
+{% block page_title %}Packing Slips{% endblock %}
+{% block page_sub %}{% endblock %}
+{% set active = "packing_slips" %}
+{% block topbar_actions %}
+<a href="/packing-slips/new" class="btn btn-primary">
+  <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  New Packing Slip
+</a>
+{% endblock %}
+{% block content %}
+{% if pls %}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>PL No.</th><th>Quote No.</th><th>Client</th><th>Date</th><th>Ship Via</th><th>PO No.</th><th></th></tr></thead>
+  <tbody>
+  {% for pl in pls %}
+  <tr>
+    <td><a href="/packing-slips/{{ pl.packing_slip_number }}" class="doc-num">{{ pl.packing_slip_number }}</a></td>
+    <td>{% if pl.qnum %}<a href="/quotes/{{ pl.qnum }}" class="doc-num">{{ pl.qnum }}</a>{% else %}—{% endif %}</td>
+    <td>{{ pl.customer_name or "—" }}</td>
+    <td>{{ pl.packing_slip_date }}</td>
+    <td>{{ pl.ship_via or "—" }}</td>
+    <td>{{ pl.po_number or "—" }}</td>
+    <td style="display:flex;gap:6px;">
+      <a href="/packing-slips/{{ pl.packing_slip_number }}" class="btn btn-sm">View</a>
+      <a href="/packing-slips/{{ pl.packing_slip_number }}/pdf" class="btn btn-sm" target="_blank">PDF</a>
+      <a href="/invoices/new?from_pl={{ pl.packing_slip_number }}" class="btn btn-sm">→ INV</a>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="empty-state">No packing slips yet. <a href="/packing-slips/new" style="color:var(--accent)">Create one →</a></div>
+{% endif %}
+{% endblock %}

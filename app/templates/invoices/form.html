@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}New Invoice — SRT{% endblock %}
+{% block page_title %}New Invoice{% endblock %}
+{% block page_sub %}Auto-numbered INV[MMDDYYYY]-[SEQ]{% endblock %}
+{% set active = "invoices" %}
+{% block topbar_actions %}<a href="/invoices/" class="btn">← Back</a>{% endblock %}
+{% block content %}
+<div style="max-width:600px;">
+<div class="card">
+  <form method="post">
+    <div class="card-title">Invoice Details</div>
+    <div class="form-grid" style="margin-bottom:16px;">
+      <div class="form-group full">
+        <label>Generate From Packing Slip *</label>
+        <select name="packing_slip_number" required>
+          <option value="">— Select packing slip —</option>
+          {% for pl in pls %}
+          <option value="{{ pl.packing_slip_number }}"
+            {% if prefill_pl and prefill_pl.packing_slip_number==pl.packing_slip_number %}selected{% endif %}>
+            {{ pl.packing_slip_number }} — {{ pl.customer_name or "" }} — {{ pl.packing_slip_date }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Invoice Date *</label>
+        <input type="date" name="invoice_date" value="{{ today }}" required>
+      </div>
+      <div class="form-group">
+        <label>Payment Term</label>
+        <select name="payment_term">
+          <option value="">— Select —</option>
+          {% for t in payment_terms %}
+          <option value="{{ t }}" {% if prefill_quote and prefill_quote.payment_term==t %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Purchase / PO Number</label>
+        <input type="text" name="purchase_number" placeholder="Leave blank — admin fills in">
+      </div>
+      <div class="form-group">
+        <label>Client ID (auto-linked from PL)</label>
+        <input type="text" name="client_id" value="{{ prefill_pl.client_id if prefill_pl else '' }}" style="opacity:0.7;">
+      </div>
+    </div>
+    {% if prefill_pl %}
+    <div class="alert alert-success">Pre-filled from {{ prefill_pl.packing_slip_number }} — {{ prefill_client.customer_name if prefill_client else "" }}</div>
+    {% endif %}
+    <div style="display:flex;gap:8px;">
+      <button type="submit" class="btn btn-primary">Create Invoice</button>
+      <a href="/invoices/" class="btn">Cancel</a>
+    </div>
+  </form>
+</div>
+</div>
+{% endblock %}

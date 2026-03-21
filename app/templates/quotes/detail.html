@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}{{ quote.quote_number }} — SRT{% endblock %}
+{% block page_title %}{{ quote.quote_number }}{% endblock %}
+{% block page_sub %}Sales Quote{% endblock %}
+{% set active = "quotes" %}
+
+{% block topbar_actions %}
+<a href="/quotes/" class="btn">← Quotes</a>
+<a href="/quotes/{{ quote.quote_number }}/pdf" class="btn" target="_blank">
+  <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+  Download PDF
+</a>
+<button class="btn btn-primary" onclick="openEmailModal()">
+  <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+  Send to Customer
+</button>
+<a href="/packing-slips/new?from_quote={{ quote.quote_number }}" class="btn">→ Create PL</a>
+{% endblock %}
+
+{% block content %}
+<div style="display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start;">
+
+  <div>
+    <!-- Quote header info -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title">Quote Information</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;">
+        <div class="detail-row">
+          <div class="detail-label">Quote No.</div>
+          <div class="detail-value doc-num">{{ quote.quote_number }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Date</div>
+          <div class="detail-value">{{ quote.quote_date }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Expiration</div>
+          <div class="detail-value">{{ quote.quote_expiration_date or "—" }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Payment Term</div>
+          <div class="detail-value">{{ quote.payment_term or "—" }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Ship From</div>
+          <div class="detail-value">{{ quote.ship_from or "—" }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Ship To</div>
+          <div class="detail-value">{{ quote.ship_to or "—" }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Line items -->
+    <div class="card">
+      <div class="card-title">Line Items</div>
+      <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Part No.</th>
+            <th>Description</th>
+            <th>Qty</th>
+            <th>Unit Price</th>
+            <th>Total</th>
+            <th>Lead Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set subtotal = namespace(v=0) %}
+          {% for it in items %}
+          {% set line_total = (it.quoted_price or 0) * (it.quantity or 1) %}
+          {% set subtotal.v = subtotal.v + line_total %}
+          <tr>
+            <td class="doc-num">{{ it.parts_number }}</td>
+            <td>{{ it.product_service_description or "—" }}</td>
+            <td>{{ it.quantity }}</td>
+            <td>${{ "%.2f"|format(it.quoted_price or 0) }}</td>
+            <td style="font-family:var(--mono);">${{ "%.2f"|format(line_total) }}T</td>
+            <td>{{ it.lead_time or "—" }}</td>
+          </tr>
+          {% endfor %}
+          {% set tax = subtotal.v * (quote.sales_tax_rate or 0) %}
+          <tr style="background:var(--surface2);">
+            <td colspan="3"></td>
+            <td style="font-size:11px;color:var(--text2);">Sales Tax {{ "%.2f"|format((quote.sales_tax_rate or 0)*100) }}%</td>
+            <td style="font-family:var(--mono);">${{ "%.2f"|format(tax) }}</td>
+            <td></td>
+          </tr>
+          <tr style="background:var(--surface2);">
+            <td colspan="3"></td>
+            <td style="font-weight:600;">Total</td>
+            <td style="font-family:var(--mono);font-weight:600;color:var(--accent);">${{ "%.2f"|format(subtotal.v + tax) }}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: client info -->
+  <div class="card">
+    <div class="card-title">Client</div>
+    {% if client %}
+    <div class="detail-row">
+      <div class="detail-label">Name</div>
+      <div class="detail-value">{{ client.customer_name }}</div>
+    </div>
+    <div class="detail-row">
+      <div class="detail-label">Well Name</div>
+      <div class="detail-value">{{ client.well_name or "—" }}</div>
+    </div>
+    <div class="detail-row">
+      <div class="detail-label">Well Address</div>
+      <div class="detail-value">{{ client.well_address or "—" }}</div>
+    </div>
+    <div class="detail-row">
+      <div class="detail-label">Billing Address</div>
+      <div class="detail-value">{{ client.billing_address or "—" }}</div>
+    </div>
+    {% else %}
+    <div style="color:var(--text3);font-size:12px;">No client linked</div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- Email Modal -->
+<div class="modal-overlay" id="email-modal">
+  <div class="modal">
+    <div class="modal-title">Send Quote to Customer</div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label>To</label>
+      <input type="email" id="email-to" placeholder="customer@example.com">
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label>Subject</label>
+      <input type="text" id="email-subject" value="Sales Quote {{ quote.quote_number }} — Steel River Technologies">
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label>Message</label>
+      <textarea id="email-body" rows="5">Please find attached Sales Quote {{ quote.quote_number }}.
+
+If you have any questions, please don't hesitate to reach out.
+
+Steel River Technologies
+432-618-0169</textarea>
+    </div>
+    <div id="email-status" style="font-size:12px;margin-bottom:6px;"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeEmailModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="sendEmail()">Send PDF</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openEmailModal() { document.getElementById("email-modal").classList.add("open"); }
+function closeEmailModal() { document.getElementById("email-modal").classList.remove("open"); }
+
+async function sendEmail() {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = "Sending…";
+  const fd = new FormData();
+  fd.append("to_email",  document.getElementById("email-to").value);
+  fd.append("subject",   document.getElementById("email-subject").value);
+  fd.append("body",      document.getElementById("email-body").value);
+  const res = await fetch("/quotes/{{ quote.quote_number }}/send", {method:"POST", body:fd});
+  const data = await res.json();
+  const status = document.getElementById("email-status");
+  if (data.ok) {
+    status.textContent = "✓ Email sent successfully.";
+    status.style.color = "var(--green)";
+    setTimeout(closeEmailModal, 1500);
+  } else {
+    status.textContent = "Error: " + (data.error || "Unknown error");
+    status.style.color = "var(--red-light)";
+  }
+  btn.disabled = false; btn.textContent = "Send PDF";
+}
+</script>
+{% endblock %}

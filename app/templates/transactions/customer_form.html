@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}New Customer Transaction — SRT{% endblock %}
+{% block page_title %}New Customer Transaction{% endblock %}
+{% block page_sub %}Record a sale or rental{% endblock %}
+{% set active = "txn_customer" %}
+{% block topbar_actions %}<a href="/transactions/customer/" class="btn">← Back</a>{% endblock %}
+
+{% block content %}
+<div style="max-width:700px;">
+<div class="card">
+<form method="post" id="txn-form">
+  <input type="hidden" name="parts_json" id="parts_json" value="[]">
+  <div class="card-title">Transaction Details</div>
+  <div class="form-grid" style="margin-bottom:16px;">
+    <div class="form-group full">
+      <label>Linked Packing Slip *</label>
+      <select name="packing_slip_id" required>
+        <option value="">— Select packing slip —</option>
+        {% for pl in pls %}
+        <option value="{{ pl.packing_slip_number }}">
+          {{ pl.packing_slip_number }} — {{ pl.customer_name or "" }} — {{ pl.packing_slip_date }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group"><label>Outbound Date</label><input type="date" name="outbound_date"></div>
+    <div class="form-group"><label>Inbound Date (leave blank if open)</label><input type="date" name="inbound_date"></div>
+    <div class="form-group"><label>Authorized POC / Signature</label><input type="text" name="signature" placeholder="Name of person who signed"></div>
+    <div class="form-group"><label>Delivered By</label><input type="text" name="delivered_by" placeholder="Carrier or person"></div>
+    <div class="form-group"><label>Discount (%)</label><input type="number" step="0.1" name="discount" value="0"></div>
+  </div>
+
+  <div class="section-header">
+    <h2>Parts</h2>
+    <button type="button" class="btn btn-sm" onclick="addPart()">+ Add Part</button>
+  </div>
+  <div class="table-wrap" style="margin-bottom:16px;">
+  <table class="line-items-table">
+    <thead><tr><th>Part No.</th><th>Description</th><th>Status</th><th></th></tr></thead>
+    <tbody id="parts-body"></tbody>
+  </table>
+  </div>
+
+  <div style="display:flex;gap:8px;">
+    <button type="submit" class="btn btn-primary" onclick="prepareSubmit()">Create Transaction</button>
+    <a href="/transactions/customer/" class="btn">Cancel</a>
+  </div>
+</form>
+</div>
+</div>
+
+<script>
+const PRODUCTS = [
+  {% for p in products %}
+  { pn: {{ p.parts_number|tojson }}, desc: {{ (p.product_service_description or "")|tojson }}, status: {{ (p.status or "")|tojson }} },
+  {% endfor %}
+];
+let parts = [];
+function addPart() { parts.push(""); renderParts(); }
+function removePart(i) { parts.splice(i,1); renderParts(); }
+function renderParts() {
+  const tbody = document.getElementById("parts-body");
+  tbody.innerHTML = "";
+  parts.forEach((pn, i) => {
+    const prod = PRODUCTS.find(p => p.pn === pn);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input type="text" list="pn-list" value="${pn}" style="width:150px;"
+          onchange="parts[${i}]=this.value; renderParts()"></td>
+      <td style="font-size:11px;color:var(--text2);">${prod?.desc||""}</td>
+      <td><span class="badge ${statusClass(prod?.status||"")}">${prod?.status||""}</span></td>
+      <td><button type="button" class="btn btn-sm btn-danger" onclick="removePart(${i})">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+function statusClass(s) {
+  const m = {"Available":"badge-available","On Loan":"badge-on-loan","Sold":"badge-sold","Damaged":"badge-damaged","In Repair":"badge-in-repair","Pending Certification":"badge-pending","Lost":"badge-lost","Retired / Decommissioned":"badge-retired"};
+  return m[s]||"";
+}
+function prepareSubmit() {
+  document.getElementById("parts_json").value = JSON.stringify(parts.filter(p=>p));
+}
+</script>
+<datalist id="pn-list">{% for p in products %}<option value="{{ p.parts_number }}">{% endfor %}</datalist>
+{% endblock %}

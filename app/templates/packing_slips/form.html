@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}New Packing Slip — SRT{% endblock %}
+{% block page_title %}New Packing Slip{% endblock %}
+{% block page_sub %}Auto-numbered PL[MMDDYYYY]-[SEQ]{% endblock %}
+{% set active = "packing_slips" %}
+{% block topbar_actions %}<a href="/packing-slips/" class="btn">← Back</a>{% endblock %}
+
+{% block content %}
+<div style="max-width:700px;">
+<div class="card">
+  <form method="post">
+    <div class="card-title">Packing Slip Details</div>
+    <div class="form-grid" style="margin-bottom:16px;">
+      <div class="form-group">
+        <label>Generate From Quote</label>
+        <select name="quote_number">
+          <option value="">— None —</option>
+          {% for q in quotes %}
+          <option value="{{ q.quote_number }}"
+            {% if prefill_quote and prefill_quote.quote_number==q.quote_number %}selected{% endif %}>
+            {{ q.quote_number }} — {{ q.customer_name or "" }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Client</label>
+        <select name="client_id">
+          <option value="">— Select client —</option>
+          {% for c in clients %}
+          <option value="{{ c.client_id }}"
+            {% if prefill_client and prefill_client.client_id==c.client_id %}selected{% endif %}>
+            {{ c.customer_name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Packing Slip Date *</label>
+        <input type="date" name="packing_slip_date" value="{{ today }}" required>
+      </div>
+      <div class="form-group">
+        <label>P.O. Number</label>
+        <input type="text" name="po_number" placeholder="Customer PO">
+      </div>
+      <div class="form-group">
+        <label>Ship Via</label>
+        <input type="text" name="ship_via"
+               value="{{ prefill_quote.ship_to if prefill_quote else '' }}">
+      </div>
+      <div class="form-group">
+        <label>Delivered By</label>
+        <input type="text" name="delivered_by" placeholder="Carrier or person">
+      </div>
+      <div class="form-group">
+        <label>Ship From</label>
+        <input type="text" name="ship_from" list="warehouse-list"
+               value="{{ prefill_quote.ship_from if prefill_quote else '' }}">
+        <datalist id="warehouse-list">
+          {% for w in warehouses %}<option value="{{ w.ship_from }}">{% endfor %}
+        </datalist>
+      </div>
+      <div class="form-group">
+        <label>Ship To</label>
+        <input type="text" name="ship_to"
+               value="{{ prefill_client.well_address if prefill_client else '' }}">
+      </div>
+    </div>
+
+    {% if prefill_items %}
+    <div class="card-title" style="margin-top:8px;">Items from Quote {{ prefill_quote.quote_number }}</div>
+    <div class="table-wrap" style="margin-bottom:16px;">
+    <table>
+      <thead><tr><th>PN</th><th>Description</th><th>Qty</th><th>Weight</th><th>Dimensions</th></tr></thead>
+      <tbody>
+      {% for it in prefill_items %}
+      <tr>
+        <td class="doc-num">{{ it.parts_number }}</td>
+        <td>{{ it.product_service_description }}</td>
+        <td>{{ it.quantity }}</td>
+        <td>{{ it.weight or "—" }}</td>
+        <td>{{ it.dimensions or "—" }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    <div style="display:flex;gap:8px;">
+      <button type="submit" class="btn btn-primary">Create Packing Slip</button>
+      <a href="/packing-slips/" class="btn">Cancel</a>
+    </div>
+  </form>
+</div>
+</div>
+{% endblock %}

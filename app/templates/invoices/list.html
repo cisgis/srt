@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Invoices — SRT{% endblock %}
+{% block page_title %}Invoices{% endblock %}
+{% block page_sub %}{% endblock %}
+{% set active = "invoices" %}
+{% block topbar_actions %}
+<a href="/invoices/new" class="btn btn-primary">
+  <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  New Invoice
+</a>
+{% endblock %}
+{% block content %}
+{% if invs %}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Invoice No.</th><th>Packing Slip</th><th>Client</th><th>Date</th><th>PO No.</th><th>Terms</th><th></th></tr></thead>
+  <tbody>
+  {% for i in invs %}
+  <tr>
+    <td><a href="/invoices/{{ i.invoice_number }}" class="doc-num">{{ i.invoice_number }}</a></td>
+    <td>{% if i.pl_num %}<a href="/packing-slips/{{ i.pl_num }}" class="doc-num">{{ i.pl_num }}</a>{% else %}—{% endif %}</td>
+    <td>{{ i.customer_name or "—" }}</td>
+    <td>{{ i.invoice_date }}</td>
+    <td>{{ i.purchase_number or "—" }}</td>
+    <td>{{ i.payment_term or "—" }}</td>
+    <td style="display:flex;gap:6px;">
+      <a href="/invoices/{{ i.invoice_number }}" class="btn btn-sm">View</a>
+      <a href="/invoices/{{ i.invoice_number }}/pdf" class="btn btn-sm" target="_blank">PDF</a>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="empty-state">No invoices yet.</div>
+{% endif %}
+{% endblock %}

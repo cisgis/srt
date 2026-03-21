@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Inventory — SRT{% endblock %}
+{% block page_title %}Inventory{% endblock %}
+{% block page_sub %}All products and serialized parts{% endblock %}
+{% set active = "inventory" %}
+
+{% block topbar_actions %}
+<a href="/inventory/new" class="btn btn-primary">
+  <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  Add Product
+</a>
+{% endblock %}
+
+{% block content %}
+<form method="get" class="search-bar">
+  <input type="text" name="search" placeholder="Search part no. or description…" value="{{ search }}">
+  <select name="status">
+    <option value="">All statuses</option>
+    {% for s in status_options %}
+    <option value="{{ s }}" {% if filter_status==s %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  <input type="text" name="location" placeholder="Location…" value="{{ filter_location }}" style="max-width:160px;">
+  <button type="submit" class="btn">Filter</button>
+  {% if search or filter_status or filter_location %}
+  <a href="/inventory/" class="btn">Clear</a>
+  {% endif %}
+</form>
+
+{% if products %}
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Part No.</th>
+      <th>Description</th>
+      <th>Status</th>
+      <th>Location</th>
+      <th>Cost</th>
+      <th>Resale</th>
+      <th>List</th>
+      <th>Vendor</th>
+      <th>Cert Expires</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in products %}
+    <tr>
+      <td><a href="/inventory/{{ p.parts_number }}" class="doc-num">{{ p.parts_number }}</a></td>
+      <td>{{ p.product_service_description or "—" }}</td>
+      <td>
+        {% set s = p.status or "" %}
+        {% if s == "Available" %}<span class="badge badge-available">{{ s }}</span>
+        {% elif s == "Pending Certification" %}<span class="badge badge-pending">{{ s }}</span>
+        {% elif s == "On Loan" %}<span class="badge badge-on-loan">{{ s }}</span>
+        {% elif s == "Sold" %}<span class="badge badge-sold">{{ s }}</span>
+        {% elif s == "Damaged" %}<span class="badge badge-damaged">{{ s }}</span>
+        {% elif s == "In Repair" %}<span class="badge badge-in-repair">{{ s }}</span>
+        {% elif s == "Retired / Decommissioned" %}<span class="badge badge-retired">{{ s }}</span>
+        {% elif s == "Lost" %}<span class="badge badge-lost">{{ s }}</span>
+        {% else %}—{% endif %}
+      </td>
+      <td>{{ p.location or "—" }}</td>
+      <td>${{ "%.2f"|format(p.cost_price) if p.cost_price else "—" }}</td>
+      <td>${{ "%.2f"|format(p.resale_price) if p.resale_price else "—" }}</td>
+      <td>${{ "%.2f"|format(p.list_price) if p.list_price else "—" }}</td>
+      <td>{{ p.vendor_name or "—" }}</td>
+      <td>{{ p.certification_expiration_date or "—" }}</td>
+      <td><a href="/inventory/{{ p.parts_number }}" class="btn btn-sm">View</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="empty-state">No products found. <a href="/inventory/new" style="color:var(--accent)">Add one →</a></div>
+{% endif %}
+{% endblock %}
