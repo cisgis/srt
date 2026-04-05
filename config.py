@@ -1,30 +1,38 @@
 from pathlib import Path
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 # ── Paths ────────────────────────────────────────────────────
-BASE_DIR      = Path(__file__).parent
-DATA_DIR      = BASE_DIR / "data"
-UPLOAD_DIR    = DATA_DIR / "uploads"
-DB_PATH       = DATA_DIR / "srt.db"
-LOGO_PATH     = BASE_DIR / "app" / "static" / "img" / "logo.png"
+BASE_DIR = Path(__file__).parent
+DATA_DIR = BASE_DIR / "data"
+UPLOAD_DIR = DATA_DIR / "uploads"
+DB_PATH = DATA_DIR / "srt.db"
+LOGO_PATH = BASE_DIR / "app" / "static" / "img" / "logo.png"
 
 DATA_DIR.mkdir(exist_ok=True)
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 # ── Company ──────────────────────────────────────────────────
-COMPANY_NAME    = "STEEL RIVER TECHNOLOGIES"
+COMPANY_NAME = "STEEL RIVER TECHNOLOGIES"
 COMPANY_ADDRESS = "8810 E CR-95, Midland, TX 79706"
-COMPANY_PHONE   = "432-618-0169"
-COMPANY_EMAIL_CONTACT   = "contact@steelriver-tech.com"
+COMPANY_PHONE = "432-618-0169"
+COMPANY_EMAIL_CONTACT = "contact@steelriver-tech.com"
 COMPANY_EMAIL_ACCOUNTING = "accounting@steelriver-tech.com"
 
-# ── Gmail SMTP ───────────────────────────────────────────────
-# Fill these in before running. Use an App Password, not your real password.
-# https://support.google.com/accounts/answer/185833
-SMTP_HOST     = "smtp.gmail.com"
-SMTP_PORT     = 587
-SMTP_USER     = "your@gmail.com"        # ← change
-SMTP_PASSWORD = "your-app-password"     # ← change
-SMTP_FROM     = "your@gmail.com"        # ← change
+# ── SMTP Email ───────────────────────────────────────────────
+# Use your existing business email's SMTP settings.
+# Common providers:
+#   Google Workspace:    smtp.gmail.com          :587
+#   Microsoft 365:       smtp.office365.com      :587
+#   cPanel / Hostinger:  mail.yourdomain.com     :587
+#   GoDaddy:             smtpout.secureserver.net:465
+SMTP_HOST = os.getenv("SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM = os.getenv("SMTP_FROM", "")
 
 # ── Document number formats ──────────────────────────────────
 # Q[MMDDYYYY]-[SEQ]    e.g. Q03152026-001

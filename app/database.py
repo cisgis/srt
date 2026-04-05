@@ -1,8 +1,7 @@
 import sqlite3
-import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import DB_PATH
+
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -10,12 +9,14 @@ def get_db():
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
+
 def init_db():
     DB_PATH.parent.mkdir(exist_ok=True)
     conn = get_db()
     conn.executescript(SCHEMA)
     conn.commit()
     conn.close()
+
 
 def next_doc_number(conn, prefix: str, date_str: str) -> str:
     """Generate next sequential document number.
@@ -29,8 +30,7 @@ def next_doc_number(conn, prefix: str, date_str: str) -> str:
     """
     pattern = f"{prefix}{date_str}-%"
     row = conn.execute(
-        "SELECT MAX(doc_number) FROM doc_sequences WHERE doc_number LIKE ?",
-        (pattern,)
+        "SELECT MAX(doc_number) FROM doc_sequences WHERE doc_number LIKE ?", (pattern,)
     ).fetchone()
 
     seq = 1
@@ -44,6 +44,7 @@ def next_doc_number(conn, prefix: str, date_str: str) -> str:
     doc_number = f"{prefix}{date_str}-{seq:03d}"
     conn.execute("INSERT INTO doc_sequences VALUES (?)", (doc_number,))
     return doc_number
+
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS doc_sequences (
@@ -150,5 +151,15 @@ CREATE TABLE IF NOT EXISTS Transaction_Internal_Items (
     item_id            INTEGER PRIMARY KEY AUTOINCREMENT,
     transaction_int_id INTEGER NOT NULL REFERENCES Transaction_Internal(transaction_int_id) ON DELETE CASCADE,
     parts_number       TEXT    NOT NULL REFERENCES Product(parts_number)
+);
+CREATE TABLE IF NOT EXISTS Email_Log (
+    log_id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    doc_type        TEXT NOT NULL CHECK(doc_type IN ('quote','packing_slip','invoice')),
+    doc_number      TEXT NOT NULL,
+    to_email        TEXT NOT NULL,
+    subject         TEXT,
+    sent_at         TEXT DEFAULT (datetime('now')),
+    status          TEXT NOT NULL CHECK(status IN ('sent','failed')),
+    error_message   TEXT
 );
 """

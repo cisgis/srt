@@ -1,56 +1,57 @@
-# Python
+# ── Python ──────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
 *.pyo
 *.pyd
 *.so
+*.pyc
 
-# Virtual Environment
+# ── Virtual Environments ────────────────────────────────────
 venv/
 .venv/
 env/
 ENV/
 
-# Distribution / packaging
+# ── Distribution / Packaging ────────────────────────────────
 dist/
 build/
 *.egg-info/
 *.egg
 .eggs/
 
-# Unit test / coverage
+# ── Testing / Coverage ──────────────────────────────────────
 .pytest_cache/
 .coverage
 htmlcov/
 
-# IDEs
+# ── Linting / Caching ───────────────────────────────────────
+.ruff_cache/
+.mypy_cache/
+
+# ── IDEs ────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.sublime-project
 *.sublime-workspace
 
-# Environment variables
+# ── Environment Variables ───────────────────────────────────
 .env
-.env.*
-!.env.example
+!env.example
 
-# Database
-# data/srt.db
-# *.db
-# *.sqlite3
+# ── Database (local dev data) ───────────────────────────────
+data/srt.db
 
-# Uploads (user-generated content)
-# data/uploads/
-
-# Logs
+# ── Logs ────────────────────────────────────────────────────
 *.log
 logs/
 
-# OS
+# ── OS ──────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Byte-compiled / optimized files
-*.pyc
+# ── PyInstaller (for .exe builds) ───────────────────────────
+*.spec
+build/
+dist/

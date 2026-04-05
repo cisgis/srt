@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {
+            size: letter;
+            margin: 0.5in;
+        }
+        
+        body {
+            font-family: Helvetica, sans-serif;
+            font-size: 11px;
+            color: #000;
+        }
+        
+        /* ── Header ───────────────────────────────────────── */
+        .header {
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .company-name {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1a365d;
+        }
+        
+        .doc-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #555;
+            text-align: right;
+        }
+        
+        /* ── Boxes ────────────────────────────────────────── */
+        .box {
+            border: 1px solid #333;
+            margin-bottom: 10px;
+        }
+        
+        .box-header {
+            background-color: #f0f0f0;
+            padding: 4px 8px;
+            font-size: 8px;
+            font-weight: bold;
+            color: #555;
+            text-transform: uppercase;
+            border-bottom: 1px solid #333;
+        }
+        
+        .box-content {
+            padding: 6px 8px;
+            font-size: 10px;
+        }
+        
+        /* ── Meta Row ─────────────────────────────────────── */
+        .meta-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        
+        .meta-table td {
+            border: 1px solid #333;
+            width: 25%;
+        }
+        
+        .meta-header {
+            background-color: #f0f0f0;
+            padding: 4px 8px;
+            font-size: 8px;
+            font-weight: bold;
+            color: #555;
+            text-transform: uppercase;
+        }
+        
+        .meta-value {
+            padding: 6px 8px;
+            font-size: 10px;
+        }
+        
+        /* ── Items Table ──────────────────────────────────── */
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            font-size: 9px;
+        }
+        
+        .items-table th {
+            background-color: #f0f0f0;
+            padding: 6px 8px;
+            text-align: left;
+            font-size: 8px;
+            font-weight: bold;
+            color: #555;
+            text-transform: uppercase;
+            border: 1px solid #333;
+        }
+        
+        .items-table td {
+            padding: 6px 8px;
+            border: 1px solid #ccc;
+        }
+        
+        .items-table tr.alt {
+            background-color: #f9f9f9;
+        }
+        
+        .center {
+            text-align: center;
+        }
+        
+        /* ── Signature Block ──────────────────────────────── */
+        .sig-table {
+            width: 100%;
+            margin-top: 30px;
+        }
+        
+        .sig-table td {
+            width: 50%;
+            vertical-align: top;
+            padding: 0 20px;
+        }
+        
+        .sig-title {
+            font-size: 10px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .sig-line {
+            border-bottom: 1px solid #333;
+            height: 25px;
+            margin-bottom: 3px;
+        }
+        
+        .sig-label {
+            font-size: 8px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        /* ── Footer ───────────────────────────────────────── */
+        .footer {
+            margin-top: 20px;
+            padding-top: 8px;
+            border-top: 1px solid #ddd;
+            text-align: center;
+            font-size: 8px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <table width="100%" class="header">
+        <tr>
+            <td>
+                {% if logo_path %}
+                <img src="{{ logo_path }}" alt="SRT" width="70">
+                {% endif %}
+                <span class="company-name">STEEL RIVER TECHNOLOGIES</span>
+            </td>
+            <td class="doc-title">Packing Slip</td>
+        </tr>
+    </table>
+    
+    <!-- Date / Invoice Number -->
+    <table class="meta-table" style="width: 50%;">
+        <tr>
+            <td>
+                <div class="meta-header">Date</div>
+                <div class="meta-value">{{ date }}</div>
+            </td>
+            <td>
+                <div class="meta-header">Invoice Number</div>
+                <div class="meta-value">{{ packing_slip_number }}</div>
+            </td>
+        </tr>
+    </table>
+    
+    <!-- Company Info + Bill To -->
+    <table width="100%">
+        <tr>
+            <td width="50%" style="padding-right: 10px; vertical-align: top;">
+                <div class="box">
+                    <div class="box-content">
+                        <strong>STEEL RIVER TECHNOLOGIES</strong><br/>
+                        8810 E CR-95, Midland, TX 79706<br/>
+                        Phone: 432-618-0169<br/>
+                        Email: accounting@steelriver-tech.com
+                    </div>
+                </div>
+            </td>
+            <td width="50%" style="padding-left: 10px; vertical-align: top;">
+                <div class="box">
+                    <div class="box-header">Bill To</div>
+                    <div class="box-content">
+                        <strong>{{ customer_name }}</strong><br/>
+                        {% if billing_address %}
+                        {{ billing_address }}<br/>
+                        {% endif %}
+                    </div>
+                </div>
+            </td>
+        </tr>
+    </table>
+    
+    <!-- Ship From + Ship To -->
+    <table width="100%">
+        <tr>
+            <td width="50%" style="padding-right: 10px; vertical-align: top;">
+                <div class="box">
+                    <div class="box-header">Ship From</div>
+                    <div class="box-content">
+                        {{ ship_from or 'SRT Warehouse' }}
+                    </div>
+                </div>
+            </td>
+            <td width="50%" style="padding-left: 10px; vertical-align: top;">
+                <div class="box">
+                    <div class="box-header">Ship To</div>
+                    <div class="box-content">
+                        <strong>{{ customer_name }}</strong><br/>
+                        {% if well_address %}
+                        {{ well_address }}<br/>
+                        {% elif billing_address %}
+                        {{ billing_address }}<br/>
+                        {% endif %}
+                        {% if ship_via %}
+                        <em>Via: {{ ship_via }}</em>
+                        {% endif %}
+                    </div>
+                </div>
+            </td>
+        </tr>
+    </table>
+    
+    <!-- Meta Row: P.O. Number | Quote No. | Ship Via | Terms -->
+    <table class="meta-table">
+        <tr>
+            <td>
+                <div class="meta-header">P.O. Number</div>
+                <div class="meta-value">{{ po_number or '—' }}</div>
+            </td>
+            <td>
+                <div class="meta-header">Quote No.</div>
+                <div class="meta-value">{{ quote_number or '—' }}</div>
+            </td>
+            <td>
+                <div class="meta-header">Ship Via</div>
+                <div class="meta-value">{{ ship_via or '—' }}</div>
+            </td>
+            <td>
+                <div class="meta-header">Terms</div>
+                <div class="meta-value">{{ payment_term or '—' }}</div>
+            </td>
+        </tr>
+    </table>
+    
+    <!-- Items Table -->
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th style="width: 5%;">SN</th>
+                <th style="width: 15%;">PN</th>
+                <th style="width: 45%;">Description</th>
+                <th style="width: 10%;" class="center">Quantity</th>
+                <th style="width: 25%;" class="center">Weight/Dimension</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr {% if loop.index is divisibleby 2 %}class="alt"{% endif %}>
+                <td class="center">{{ loop.index }}</td>
+                <td>{{ item.parts_number }}</td>
+                <td>{{ item.description }}</td>
+                <td class="center">{{ item.quantity }}</td>
+                <td class="center">{{ item.weight_dimension or '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <!-- Signature Block -->
+    <table class="sig-table">
+        <tr>
+            <td>
+                <div class="sig-title">Receiver</div>
+                <div class="sig-line"></div>
+                <div class="sig-label">Print Name</div>
+                <div class="sig-line"></div>
+                <div class="sig-label">Signature</div>
+                <div class="sig-line"></div>
+                <div class="sig-label">Date</div>
+            </td>
+            <td>
+                <div class="sig-title">Supplier</div>
+                <div class="sig-line"></div>
+                <div class="sig-label">Print Name</div>
+                <div class="sig-line"></div>
+                <div class="sig-label">Signature</div>
+                <div class="sig-line"></div>
+                <div class="sig-label">Date</div>
+            </td>
+        </tr>
+    </table>
+    
+    <!-- Footer -->
+    <div class="footer">
+        <strong>STEEL RIVER TECHNOLOGIES</strong><br/>
+        8810 E CR-95, Midland, TX 79706 | Phone: 432-618-0169<br/>
+        contact@steelriver-tech.com
+    </div>
+</body>
+</html>
