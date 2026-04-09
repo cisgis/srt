@@ -51,41 +51,48 @@ CREATE TABLE IF NOT EXISTS doc_sequences (
     doc_number TEXT PRIMARY KEY
 );
 CREATE TABLE IF NOT EXISTS Vendor (
-    vendor_id   TEXT PRIMARY KEY,
-    vendor_name TEXT NOT NULL
+    name TEXT PRIMARY KEY
+);
+CREATE TABLE IF NOT EXISTS PartNumber (
+    parts_number    TEXT PRIMARY KEY,
+    description     TEXT,
+    cost_price      REAL,
+    resale_price    REAL,
+    rental_price    REAL,
+    weight          REAL,
+    dimensions      TEXT,
+    vendor_name     TEXT REFERENCES Vendor(name)
 );
 CREATE TABLE IF NOT EXISTS Product (
-    parts_number                  TEXT PRIMARY KEY,
-    product_service_description   TEXT,
-    cost_price                    REAL,
-    resale_price                  REAL,
-    list_price                    REAL,
-    purchase_date                 TEXT,
-    resale_date                   TEXT,
-    recertification_date          TEXT,
-    certification_expiration_date TEXT,
-    mtr_filename                  TEXT,
-    drawing_filename              TEXT,
-    weight                        REAL,
-    dimensions                    TEXT,
-    status                        TEXT CHECK(status IN (
-                                      'Available','Pending Certification','On Loan',
-                                      'Sold','Damaged','In Repair',
-                                      'Retired / Decommissioned','Lost')),
-    total_cost_of_ownership       REAL,
-    location                      TEXT,
-    vendor_id                     TEXT REFERENCES Vendor(vendor_id)
+    serial_number                   TEXT PRIMARY KEY,
+    parts_number                    TEXT NOT NULL REFERENCES PartNumber(parts_number),
+    status                          TEXT CHECK(status IN (
+                                         'Available','Pending Certification','On Loan',
+                                         'Sold','Damaged','In Repair',
+                                         'Retired / Decommissioned','Lost')),
+    location                        TEXT,
+    receiving_date                  TEXT,
+    certification_expiration_date   TEXT,
+    mtr_filename                    TEXT,
+    drawing_filename                TEXT
 );
 CREATE TABLE IF NOT EXISTS Clients (
-    client_id       TEXT PRIMARY KEY,
-    customer_name   TEXT NOT NULL,
-    well_name       TEXT,
-    well_address    TEXT,
+    client_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL,
+    department      TEXT,
+    company         TEXT,
+    phone           TEXT,
+    email           TEXT,
+    site_address    TEXT,
     billing_address TEXT
 );
 CREATE TABLE IF NOT EXISTS Warehouse (
     warehouse_id TEXT PRIMARY KEY,
     ship_from    TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS Location (
+    name TEXT PRIMARY KEY,
+    address TEXT
 );
 CREATE TABLE IF NOT EXISTS Quote (
     quote_number          TEXT PRIMARY KEY,
@@ -100,7 +107,7 @@ CREATE TABLE IF NOT EXISTS Quote (
 CREATE TABLE IF NOT EXISTS Quote_Items (
     item_id       INTEGER PRIMARY KEY AUTOINCREMENT,
     quote_number  TEXT    NOT NULL REFERENCES Quote(quote_number) ON DELETE CASCADE,
-    parts_number  TEXT    NOT NULL REFERENCES Product(parts_number),
+    parts_number  TEXT    NOT NULL REFERENCES PartNumber(parts_number),
     quantity      INTEGER NOT NULL DEFAULT 1,
     quoted_price  REAL,
     lead_time     TEXT
@@ -136,7 +143,7 @@ CREATE TABLE IF NOT EXISTS Transaction_External (
 CREATE TABLE IF NOT EXISTS Transaction_External_Items (
     item_id            INTEGER PRIMARY KEY AUTOINCREMENT,
     transaction_ext_id INTEGER NOT NULL REFERENCES Transaction_External(transaction_ext_id) ON DELETE CASCADE,
-    parts_number       TEXT    NOT NULL REFERENCES Product(parts_number)
+    serial_number      TEXT    NOT NULL REFERENCES Product(serial_number)
 );
 CREATE TABLE IF NOT EXISTS Transaction_Internal (
     transaction_int_id  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -150,7 +157,7 @@ CREATE TABLE IF NOT EXISTS Transaction_Internal (
 CREATE TABLE IF NOT EXISTS Transaction_Internal_Items (
     item_id            INTEGER PRIMARY KEY AUTOINCREMENT,
     transaction_int_id INTEGER NOT NULL REFERENCES Transaction_Internal(transaction_int_id) ON DELETE CASCADE,
-    parts_number       TEXT    NOT NULL REFERENCES Product(parts_number)
+    serial_number      TEXT    NOT NULL REFERENCES Product(serial_number)
 );
 CREATE TABLE IF NOT EXISTS Email_Log (
     log_id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -161,5 +168,15 @@ CREATE TABLE IF NOT EXISTS Email_Log (
     sent_at         TEXT DEFAULT (datetime('now')),
     status          TEXT NOT NULL CHECK(status IN ('sent','failed')),
     error_message   TEXT
+);
+CREATE TABLE IF NOT EXISTS Product_Lifecycle (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    serial_number   TEXT NOT NULL REFERENCES Product(serial_number),
+    change_date     TEXT NOT NULL,
+    old_status      TEXT,
+    new_status      TEXT,
+    old_location    TEXT,
+    new_location    TEXT,
+    transaction_type TEXT NOT NULL CHECK(transaction_type IN ('INTERNAL','EXTERNAL'))
 );
 """

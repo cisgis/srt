@@ -13,56 +13,12 @@ PAYMENT_TERMS = ["COD", "Net 7", "Net 14", "Net 21", "Net 30", "Net 60"]
 
 @router.get("/", response_class=HTMLResponse)
 def inv_list(request: Request):
-    db = get_db()
-    invs = db.execute("""
-        SELECT i.*, c.customer_name, ps.packing_slip_number as pl_num
-        FROM Invoice i
-        LEFT JOIN Clients c ON i.client_id=c.client_id
-        LEFT JOIN Packing_Slip ps ON i.packing_slip_number=ps.packing_slip_number
-        ORDER BY i.invoice_date DESC
-    """).fetchall()
-    db.close()
-    return templates.TemplateResponse(
-        "invoices/list.html", {"request": request, "invs": invs}
-    )
+    return templates.TemplateResponse("invoices/list.html", {"request": request})
 
 
 @router.get("/new", response_class=HTMLResponse)
 def inv_new(request: Request, from_pl: str = ""):
-    db = get_db()
-    pls = db.execute("""
-        SELECT ps.*, c.customer_name FROM Packing_Slip ps
-        LEFT JOIN Clients c ON ps.client_id=c.client_id
-        ORDER BY ps.packing_slip_date DESC
-    """).fetchall()
-    prefill_pl = prefill_client = prefill_quote = None
-    if from_pl:
-        prefill_pl = db.execute(
-            "SELECT * FROM Packing_Slip WHERE packing_slip_number=?", (from_pl,)
-        ).fetchone()
-        if prefill_pl and prefill_pl["client_id"]:
-            prefill_client = db.execute(
-                "SELECT * FROM Clients WHERE client_id=?", (prefill_pl["client_id"],)
-            ).fetchone()
-        if prefill_pl and prefill_pl["quote_number"]:
-            prefill_quote = db.execute(
-                "SELECT * FROM Quote WHERE quote_number=?",
-                (prefill_pl["quote_number"],),
-            ).fetchone()
-    db.close()
-    today = datetime.today().strftime("%Y-%m-%d")
-    return templates.TemplateResponse(
-        "invoices/form.html",
-        {
-            "request": request,
-            "pls": pls,
-            "payment_terms": PAYMENT_TERMS,
-            "today": today,
-            "prefill_pl": prefill_pl,
-            "prefill_client": prefill_client,
-            "prefill_quote": prefill_quote,
-        },
-    )
+    return templates.TemplateResponse("invoices/form.html", {"request": request})
 
 
 @router.post("/new")
@@ -94,51 +50,9 @@ async def inv_create(
 
 @router.get("/{inv_number}", response_class=HTMLResponse)
 def inv_detail(request: Request, inv_number: str):
-    db = get_db()
-    inv = db.execute(
-        "SELECT * FROM Invoice WHERE invoice_number=?", (inv_number,)
-    ).fetchone()
-    pl = (
-        db.execute(
-            "SELECT * FROM Packing_Slip WHERE packing_slip_number=?",
-            (inv["packing_slip_number"],),
-        ).fetchone()
-        if inv and inv["packing_slip_number"]
-        else None
-    )
-    client = (
-        db.execute(
-            "SELECT * FROM Clients WHERE client_id=?", (inv["client_id"],)
-        ).fetchone()
-        if inv and inv["client_id"]
-        else None
-    )
-    quote = None
-    items = []
-    if pl and pl["quote_number"]:
-        quote = db.execute(
-            "SELECT * FROM Quote WHERE quote_number=?", (pl["quote_number"],)
-        ).fetchone()
-        items = db.execute(
-            """
-            SELECT qi.*, p.product_service_description, p.weight, p.dimensions
-            FROM Quote_Items qi JOIN Product p ON qi.parts_number=p.parts_number
-            WHERE qi.quote_number=?
-        """,
-            (pl["quote_number"],),
-        ).fetchall()
-    db.close()
     return templates.TemplateResponse(
         "invoices/detail.html",
-        {
-            "request": request,
-            "inv": inv,
-            "pl": pl,
-            "client": client,
-            "quote": quote,
-            "items": items,
-            "payment_terms": PAYMENT_TERMS,
-        },
+        {"request": request, "inv": {"invoice_number": inv_number}},
     )
 
 

@@ -12,62 +12,12 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 
 @router.get("/", response_class=HTMLResponse)
 def pl_list(request: Request):
-    db = get_db()
-    pls = db.execute("""
-        SELECT ps.*, c.customer_name, q.quote_number as qnum
-        FROM Packing_Slip ps
-        LEFT JOIN Clients c ON ps.client_id=c.client_id
-        LEFT JOIN Quote q ON ps.quote_number=q.quote_number
-        ORDER BY ps.packing_slip_date DESC
-    """).fetchall()
-    db.close()
-    return templates.TemplateResponse(
-        "packing_slips/list.html", {"request": request, "pls": pls}
-    )
+    return templates.TemplateResponse("packing_slips/list.html", {"request": request})
 
 
 @router.get("/new", response_class=HTMLResponse)
 def pl_new(request: Request, from_quote: str = ""):
-    db = get_db()
-    quotes = db.execute(
-        "SELECT q.*, c.customer_name FROM Quote q LEFT JOIN Clients c ON q.client_id=c.client_id ORDER BY q.quote_date DESC"
-    ).fetchall()
-    clients = db.execute("SELECT * FROM Clients ORDER BY customer_name").fetchall()
-    warehouses = db.execute("SELECT * FROM Warehouse").fetchall()
-    prefill_quote = None
-    prefill_items = []
-    prefill_client = None
-    if from_quote:
-        prefill_quote = db.execute(
-            "SELECT * FROM Quote WHERE quote_number=?", (from_quote,)
-        ).fetchone()
-        if prefill_quote and prefill_quote["client_id"]:
-            prefill_client = db.execute(
-                "SELECT * FROM Clients WHERE client_id=?", (prefill_quote["client_id"],)
-            ).fetchone()
-        prefill_items = db.execute(
-            """
-            SELECT qi.*, p.product_service_description, p.weight, p.dimensions
-            FROM Quote_Items qi JOIN Product p ON qi.parts_number=p.parts_number
-            WHERE qi.quote_number=?
-        """,
-            (from_quote,),
-        ).fetchall()
-    db.close()
-    today = datetime.today().strftime("%Y-%m-%d")
-    return templates.TemplateResponse(
-        "packing_slips/form.html",
-        {
-            "request": request,
-            "quotes": quotes,
-            "clients": clients,
-            "warehouses": warehouses,
-            "today": today,
-            "prefill_quote": prefill_quote,
-            "prefill_items": prefill_items,
-            "prefill_client": prefill_client,
-        },
-    )
+    return templates.TemplateResponse("packing_slips/form.html", {"request": request})
 
 
 @router.post("/new")
@@ -105,44 +55,9 @@ async def pl_create(
 
 @router.get("/{pl_number}", response_class=HTMLResponse)
 def pl_detail(request: Request, pl_number: str):
-    db = get_db()
-    pl = db.execute(
-        "SELECT * FROM Packing_Slip WHERE packing_slip_number=?", (pl_number,)
-    ).fetchone()
-    client = (
-        db.execute(
-            "SELECT * FROM Clients WHERE client_id=?", (pl["client_id"],)
-        ).fetchone()
-        if pl and pl["client_id"]
-        else None
-    )
-    quote = (
-        db.execute(
-            "SELECT * FROM Quote WHERE quote_number=?", (pl["quote_number"],)
-        ).fetchone()
-        if pl and pl["quote_number"]
-        else None
-    )
-    items = []
-    if quote:
-        items = db.execute(
-            """
-            SELECT qi.*, p.product_service_description, p.weight, p.dimensions
-            FROM Quote_Items qi JOIN Product p ON qi.parts_number=p.parts_number
-            WHERE qi.quote_number=?
-        """,
-            (quote["quote_number"],),
-        ).fetchall()
-    db.close()
     return templates.TemplateResponse(
         "packing_slips/detail.html",
-        {
-            "request": request,
-            "pl": pl,
-            "client": client,
-            "quote": quote,
-            "items": items,
-        },
+        {"request": request, "pl": {"packing_slip_number": pl_number}},
     )
 
 

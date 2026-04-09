@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}{% if product %}Edit Product{% else %}New Product{% endif %} — SRT{% endblock %}
+{% block page_title %}{% if product %}Edit Product{% else %}New Product{% endif %}{% endblock %}
+{% block page_sub %}{% if product %}{{ product.serial_number }}{% else %}Add a serialized product{% endif %}{% endblock %}
+{% set active = "inventory" %}
+
+{% block content %}
+<form method="post" enctype="multipart/form-data" class="form" id="product-form">
+  <div class="form-grid">
+    {% if fixed_parts_number %}
+    <input type="hidden" name="parts_number" value="{{ fixed_parts_number }}">
+    <div class="form-group">
+      <label for="display_parts">Part Number</label>
+      <input type="text" id="display_parts" value="{{ fixed_parts_number }}" disabled>
+    </div>
+    {% else %}
+    <div class="form-group">
+      <label for="parts_number">Part Number *</label>
+      <select id="parts_number" name="parts_number" required>
+        <option value="">— Select Part Number —</option>
+        {% for pn in partnumbers %}
+        <option value="{{ pn.parts_number }}" {% if (product and product.parts_number == pn.parts_number) or preselected_parts_number == pn.parts_number %}selected{% endif %}>
+          {{ pn.parts_number }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
+    <div class="form-group" id="sn-field">
+      <label for="serial_number">Serial Number *</label>
+      <input type="text" id="serial_number" name="serial_number" value="{{ product.serial_number if product else suggested_serial }}" required pattern=".+-\d{4}">
+      <small>Format: PART-0001</small>
+    </div>
+
+    <div class="form-group">
+      <label for="status">Status *</label>
+      <select id="status" name="status" required>
+        {% for s in status_options %}
+        <option value="{{ s }}" {% if (product and product.status == s) or (not product and s == 'Available') %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="location">Location *</label>
+      <select id="location" name="location" required>
+        {% for loc in locations %}
+        <option value="{{ loc.name }}" {% if product and product.location == loc.name or (not product and loop.first) %}selected{% endif %}>{{ loc.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="receiving_date">Receiving Date *</label>
+      <input type="date" id="receiving_date" name="receiving_date" value="{{ product.receiving_date if product else '' }}" required>
+    </div>
+
+    <div class="form-group">
+      <label for="certification_expiration_date">Certification Expiration</label>
+      <input type="date" id="certification_expiration_date" name="certification_expiration_date" value="{{ product.certification_expiration_date if product else '' }}">
+    </div>
+
+    <div class="form-group">
+      <label for="mtr_file">MTR File (PDF/Image)</label>
+      <input type="file" id="mtr_file" name="mtr_file" accept=".pdf,.jpg,.jpeg,.png">
+      {% if product and product.mtr_filename %}
+      <small>Current: {{ product.mtr_filename }}</small>
+      {% endif %}
+      <small style="color:#666;">Max 10MB</small>
+      <small id="mtr-error" style="color:#e07070;display:none;">File exceeds 10MB limit</small>
+    </div>
+
+    <div class="form-group">
+      <label for="drawing_file">Drawing File (PDF/Image)</label>
+      <input type="file" id="drawing_file" name="drawing_file" accept=".pdf,.jpg,.jpeg,.png">
+      {% if product and product.drawing_filename %}
+      <small>Current: {{ product.drawing_filename }}</small>
+      {% endif %}
+      <small style="color:#666;">Max 10MB</small>
+      <small id="drawing-error" style="color:#e07070;display:none;">File exceeds 10MB limit</small>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <a href="{% if product %}/inventory/product/{{ product.serial_number }}{% else %}/inventory/{% endif %}" class="btn">Cancel</a>
+    <button type="submit" class="btn btn-primary">
+      {% if product %}Save Changes{% else %}Add Product{% endif %}
+    </button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MAX_SIZE = 10 * 1024 * 1024;
+
+function validateFile(input, errorId) {
+  const error = document.getElementById(errorId);
+  if (input.files && input.files[0]) {
+    if (input.files[0].size > MAX_SIZE) {
+      error.style.display = 'block';
+      input.style.borderColor = '#e07070';
+      return false;
+    }
+  }
+  error.style.display = 'none';
+  input.style.borderColor = '';
+  return true;
+}
+
+document.getElementById('mtr_file').addEventListener('change', function() {
+  validateFile(this, 'mtr-error');
+});
+
+document.getElementById('drawing_file').addEventListener('change', function() {
+  validateFile(this, 'drawing-error');
+});
+
+document.getElementById('product-form').addEventListener('submit', function(e) {
+  const mtr = document.getElementById('mtr_file');
+  const drawing = document.getElementById('drawing_file');
+  
+  if (!validateFile(mtr, 'mtr-error') || !validateFile(drawing, 'drawing-error')) {
+    e.preventDefault();
+    return false;
+  }
+});
+
+document.getElementById('serial_number').addEventListener('blur', async function() {
+  const sn = this.value.trim();
+  if (!sn || !sn.match(/.+-\d{4}/)) return;
+  
+  const existing = document.getElementById('sn-existing');
+  if (existing) existing.remove();
+  
+  try {
+    const res = await fetch('/inventory/api/check-sn/' + encodeURIComponent(sn));
+    if (res.ok) {
+      const data = await res.json();
+      if (data.exists) {
+        const error = document.createElement('small');
+        error.id = 'sn-existing';
+        error.style.cssText = 'color: #e07070; display: block; margin-top: 4px;';
+        error.textContent = 'Serial number already exists';
+        this.parentNode.appendChild(error);
+        this.style.borderColor = '#e07070';
+      }
+    }
+  } catch(e) {}
+});
+
+document.getElementById('serial_number').addEventListener('input', function() {
+  const existing = document.getElementById('sn-existing');
+  if (existing) {
+    existing.remove();
+    this.style.borderColor = '';
+  }
+});
+</script>
+{% endblock %}

@@ -31,12 +31,12 @@
   </div>
 
   <div class="section-header">
-    <h2>Parts</h2>
-    <button type="button" class="btn btn-sm" onclick="addPart()">+ Add Part</button>
+    <h2>Products</h2>
+    <button type="button" class="btn btn-sm" onclick="addPart()">+ Add Product</button>
   </div>
   <div class="table-wrap" style="margin-bottom:16px;">
   <table class="line-items-table">
-    <thead><tr><th>Part No.</th><th>Description</th><th>Status</th><th></th></tr></thead>
+    <thead><tr><th>Serial No.</th><th>Part No.</th><th>Description</th><th>Status</th><th></th></tr></thead>
     <tbody id="parts-body"></tbody>
   </table>
   </div>
@@ -52,7 +52,7 @@
 <script>
 const PRODUCTS = [
   {% for p in products %}
-  { pn: {{ p.parts_number|tojson }}, desc: {{ (p.product_service_description or "")|tojson }}, status: {{ (p.status or "")|tojson }} },
+  { sn: {{ p.serial_number|tojson }}, pn: {{ p.parts_number|tojson }}, desc: {{ (p.description or "")|tojson }}, status: {{ (p.status or "")|tojson }} },
   {% endfor %}
 ];
 let parts = [];
@@ -61,12 +61,13 @@ function removePart(i) { parts.splice(i,1); renderParts(); }
 function renderParts() {
   const tbody = document.getElementById("parts-body");
   tbody.innerHTML = "";
-  parts.forEach((pn, i) => {
-    const prod = PRODUCTS.find(p => p.pn === pn);
+  parts.forEach((sn, i) => {
+    const prod = PRODUCTS.find(p => p.sn === sn);
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td><input type="text" list="pn-list" value="${pn}" style="width:150px;"
+      <td><input type="text" list="sn-list" value="${sn}" style="width:180px;"
           onchange="parts[${i}]=this.value; renderParts()"></td>
+      <td style="font-size:11px;">${prod?.pn||""}</td>
       <td style="font-size:11px;color:var(--text2);">${prod?.desc||""}</td>
       <td><span class="badge ${statusClass(prod?.status||"")}">${prod?.status||""}</span></td>
       <td><button type="button" class="btn btn-sm btn-danger" onclick="removePart(${i})">✕</button></td>
@@ -82,5 +83,5 @@ function prepareSubmit() {
   document.getElementById("parts_json").value = JSON.stringify(parts.filter(p=>p));
 }
 </script>
-<datalist id="pn-list">{% for p in products %}<option value="{{ p.parts_number }}">{% endfor %}</datalist>
+<datalist id="sn-list">{% for p in products %}<option value="{{ p.serial_number }}">{% endfor %}</datalist>
 {% endblock %}

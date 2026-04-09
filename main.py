@@ -13,6 +13,7 @@ from app.routes.invoices import router as inv_doc_router
 from app.routes.other import (
     clients_router,
     vendors_router,
+    locations_router,
     txn_ext_router,
     txn_int_router,
 )
@@ -33,6 +34,12 @@ app.mount(
     name="static",
 )
 
+app.mount(
+    "/uploads",
+    StaticFiles(directory=str(Path(__file__).parent / "data" / "uploads")),
+    name="uploads",
+)
+
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "app" / "templates"))
 
 app.include_router(inv_router)
@@ -41,6 +48,7 @@ app.include_router(pl_router)
 app.include_router(inv_doc_router)
 app.include_router(clients_router)
 app.include_router(vendors_router)
+app.include_router(locations_router)
 app.include_router(txn_ext_router)
 app.include_router(txn_int_router)
 app.include_router(pdf_api_router)
@@ -56,21 +64,13 @@ def root(request: Request):
         "available": db.execute(
             "SELECT COUNT(*) FROM Product WHERE status='Available'"
         ).fetchone()[0],
-        "open_quotes": db.execute("SELECT COUNT(*) FROM Quote").fetchone()[0],
-        "open_pls": db.execute("SELECT COUNT(*) FROM Packing_Slip").fetchone()[0],
-        "open_invoices": db.execute("SELECT COUNT(*) FROM Invoice").fetchone()[0],
+        "open_quotes": 0,
+        "open_pls": 0,
+        "open_invoices": 0,
         "total_clients": db.execute("SELECT COUNT(*) FROM Clients").fetchone()[0],
     }
-    recent_quotes = db.execute("""
-        SELECT q.*, c.customer_name FROM Quote q
-        LEFT JOIN Clients c ON q.client_id=c.client_id
-        ORDER BY q.quote_date DESC LIMIT 5
-    """).fetchall()
-    recent_pls = db.execute("""
-        SELECT ps.*, c.customer_name FROM Packing_Slip ps
-        LEFT JOIN Clients c ON ps.client_id=c.client_id
-        ORDER BY ps.packing_slip_date DESC LIMIT 5
-    """).fetchall()
+    recent_quotes = []
+    recent_pls = []
     db.close()
     return templates.TemplateResponse(
         "dashboard.html",

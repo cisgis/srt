@@ -15,40 +15,12 @@ PAYMENT_TERMS = ["COD", "Net 7", "Net 14", "Net 21", "Net 30", "Net 60"]
 
 @router.get("/", response_class=HTMLResponse)
 def quotes_list(request: Request):
-    db = get_db()
-    quotes = db.execute("""
-        SELECT q.*, c.customer_name FROM Quote q
-        LEFT JOIN Clients c ON q.client_id=c.client_id
-        ORDER BY q.quote_date DESC
-    """).fetchall()
-    db.close()
-    return templates.TemplateResponse(
-        "quotes/list.html", {"request": request, "quotes": quotes}
-    )
+    return templates.TemplateResponse("quotes/list.html", {"request": request})
 
 
 @router.get("/new", response_class=HTMLResponse)
 def quote_new(request: Request):
-    db = get_db()
-    clients = db.execute("SELECT * FROM Clients ORDER BY customer_name").fetchall()
-    products = db.execute(
-        "SELECT parts_number, product_service_description, resale_price, list_price FROM Product ORDER BY parts_number"
-    ).fetchall()
-    warehouses = db.execute("SELECT * FROM Warehouse").fetchall()
-    db.close()
-    today = datetime.today().strftime("%Y-%m-%d")
-    return templates.TemplateResponse(
-        "quotes/form.html",
-        {
-            "request": request,
-            "quote": None,
-            "clients": clients,
-            "products": products,
-            "warehouses": warehouses,
-            "payment_terms": PAYMENT_TERMS,
-            "today": today,
-        },
-    )
+    return templates.TemplateResponse("quotes/form.html", {"request": request})
 
 
 @router.post("/new")
@@ -113,43 +85,9 @@ async def quote_create(
 
 @router.get("/{quote_number}", response_class=HTMLResponse)
 def quote_detail(request: Request, quote_number: str):
-    db = get_db()
-    quote = db.execute(
-        "SELECT * FROM Quote WHERE quote_number=?", (quote_number,)
-    ).fetchone()
-    client = (
-        db.execute(
-            "SELECT * FROM Clients WHERE client_id=?", (quote["client_id"],)
-        ).fetchone()
-        if quote["client_id"]
-        else None
-    )
-    items = db.execute(
-        """
-        SELECT qi.*, p.product_service_description
-        FROM Quote_Items qi JOIN Product p ON qi.parts_number=p.parts_number
-        WHERE qi.quote_number=?
-    """,
-        (quote_number,),
-    ).fetchall()
-    clients = db.execute("SELECT * FROM Clients ORDER BY customer_name").fetchall()
-    products = db.execute(
-        "SELECT parts_number, product_service_description, resale_price, list_price FROM Product ORDER BY parts_number"
-    ).fetchall()
-    warehouses = db.execute("SELECT * FROM Warehouse").fetchall()
-    db.close()
     return templates.TemplateResponse(
         "quotes/detail.html",
-        {
-            "request": request,
-            "quote": quote,
-            "client": client,
-            "items": items,
-            "clients": clients,
-            "products": products,
-            "warehouses": warehouses,
-            "payment_terms": PAYMENT_TERMS,
-        },
+        {"request": request, "quote": {"quote_number": quote_number}},
     )
 
 
@@ -172,8 +110,8 @@ def quote_pdf(quote_number: str):
         dict(r)
         for r in db.execute(
             """
-        SELECT qi.*, p.product_service_description
-        FROM Quote_Items qi JOIN Product p ON qi.parts_number=p.parts_number
+        SELECT qi.*, pn.description
+        FROM Quote_Items qi JOIN PartNumber pn ON qi.parts_number=pn.parts_number
         WHERE qi.quote_number=?
     """,
             (quote_number,),
@@ -215,8 +153,8 @@ async def quote_send(
         dict(r)
         for r in db.execute(
             """
-        SELECT qi.*, p.product_service_description
-        FROM Quote_Items qi JOIN Product p ON qi.parts_number=p.parts_number
+        SELECT qi.*, pn.description
+        FROM Quote_Items qi JOIN PartNumber pn ON qi.parts_number=pn.parts_number
         WHERE qi.quote_number=?
     """,
             (quote_number,),

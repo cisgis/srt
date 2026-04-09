@@ -11,16 +11,15 @@
 {% if vendors %}
 <div class="table-wrap">
 <table>
-  <thead><tr><th>Vendor ID</th><th>Vendor Name</th><th>Products</th><th></th></tr></thead>
+  <thead><tr><th>Vendor Name</th><th>Part Numbers</th><th></th></tr></thead>
   <tbody>
   {% for v in vendors %}
   <tr>
-    <td style="font-family:var(--mono);font-size:12px;">{{ v.vendor_id }}</td>
-    <td>{{ v.vendor_name }}</td>
+    <td>{{ v.name }}</td>
     <td>{{ v.product_count }}</td>
     <td style="display:flex;gap:6px;">
-      <button class="btn btn-sm" onclick="openEdit('{{ v.vendor_id }}','{{ v.vendor_name|replace("'","\\'")|e }}')">Edit</button>
-      <form method="post" action="/vendors/{{ v.vendor_id }}/delete" onsubmit="return confirm('Delete this vendor?')">
+      <button class="btn btn-sm" onclick="openEdit('{{ v.name|replace("'","\\'")|e }}')">Edit</button>
+      <form method="post" action="/vendors/{{ v.name|urlencode }}/delete" onsubmit="return confirm('Delete this vendor?')">
         <button type="submit" class="btn btn-sm btn-danger">Delete</button>
       </form>
     </td>
@@ -37,8 +36,7 @@
   <div class="modal">
     <div class="modal-title">Add Vendor</div>
     <form method="post" action="/vendors/new">
-      <div class="form-group" style="margin-bottom:10px;"><label>Vendor ID *</label><input type="text" name="vendor_id" required></div>
-      <div class="form-group" style="margin-bottom:10px;"><label>Vendor Name *</label><input type="text" name="vendor_name" required></div>
+      <div class="form-group" style="margin-bottom:10px;"><label>Vendor Name *</label><input type="text" name="name" required></div>
       <div class="modal-actions">
         <button type="button" class="btn" onclick="document.getElementById('add-modal').classList.remove('open')">Cancel</button>
         <button type="submit" class="btn btn-primary">Add Vendor</button>
@@ -51,7 +49,7 @@
   <div class="modal">
     <div class="modal-title">Edit Vendor</div>
     <form method="post" id="edit-form">
-      <div class="form-group" style="margin-bottom:10px;"><label>Vendor Name *</label><input type="text" name="vendor_name" id="edit-name" required></div>
+      <div class="form-group" style="margin-bottom:10px;"><label>Vendor Name *</label><input type="text" name="new_name" id="edit-name" required></div>
       <div class="modal-actions">
         <button type="button" class="btn" onclick="document.getElementById('edit-modal').classList.remove('open')">Cancel</button>
         <button type="submit" class="btn btn-primary">Save</button>
@@ -63,8 +61,8 @@
 
 {% block scripts %}
 <script>
-function openEdit(id, name) {
-  document.getElementById("edit-form").action = "/vendors/" + id + "/edit";
+function openEdit(name) {
+  document.getElementById("edit-form").action = "/vendors/" + encodeURIComponent(name) + "/edit";
   document.getElementById("edit-name").value = name;
   document.getElementById("edit-modal").classList.add("open");
 }

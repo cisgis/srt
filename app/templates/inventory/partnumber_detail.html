@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}{{ partnumber.parts_number }} — SRT{% endblock %}
+{% block page_title %}{{ partnumber.parts_number }}{% endblock %}
+{% block page_sub %}{{ partnumber.description or 'Part Number Detail' }}{% endblock %}
+{% set active = "inventory" %}
+
+{% block topbar_actions %}
+<a href="/inventory/product/new?parts_number={{ partnumber.parts_number }}" class="btn btn-primary">
+  <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  Add Serialized Product
+</a>
+<a href="/inventory/part-number/{{ partnumber.parts_number }}/edit" class="btn">
+  Edit Part Number
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="detail-grid">
+  <div class="detail-section">
+    <h3>Part Number Info</h3>
+    <div class="detail-row">
+      <span class="detail-label">Description</span>
+      <span>{{ partnumber.description or "—" }}</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Vendor</span>
+      <span>{{ partnumber.vendor_name or "—" }}</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Weight</span>
+      <span>{{ partnumber.weight ~ " lbs" if partnumber.weight else "—" }}</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Dimensions</span>
+      <span>{{ partnumber.dimensions or "—" }}</span>
+    </div>
+  </div>
+
+  <div class="detail-section">
+    <h3>Pricing</h3>
+    <div class="detail-row">
+      <span class="detail-label">Cost Price</span>
+      <span>${{ "%.2f"|format(partnumber.cost_price) if partnumber.cost_price else "—" }}</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Resale Price</span>
+      <span>${{ "%.2f"|format(partnumber.resale_price) if partnumber.resale_price else "—" }}</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Rental Price</span>
+      <span>${{ "%.2f"|format(partnumber.rental_price) if partnumber.rental_price else "—" }}</span>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top: 2rem;">Products ({{ products|length }})</h3>
+{% if products %}
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Serial Number</th>
+      <th>Status</th>
+      <th>Location</th>
+      <th>Receiving Date</th>
+      <th>Cert Expires</th>
+    </tr>
+  </thead>
+  <tbody id="products-table-body">
+    {% for p in products %}
+    <tr data-status="{{ p.status }}" data-location="{{ p.location }}" data-cert="{% if p.certification_expiration_date %}{% if p.certification_expiration_date < today %}expired{% elif p.certification_expiration_date < today_30 %}expiring{% else %}yes{% endif %}{% else %}no{% endif %}" data-has-cert="{% if p.certification_expiration_date %}yes{% else %}no{% endif %}">
+      <td><a href="/inventory/product/{{ p.serial_number }}" class="doc-num">{{ p.serial_number }}</a></td>
+      <td>
+        {% set s = p.status or "" %}
+        {% if s == "Available" %}<span class="badge badge-available">{{ s }}</span>
+        {% elif s == "Pending Cert" %}<span class="badge badge-pending">{{ s }}</span>
+        {% elif s == "On Loan" %}<span class="badge badge-on-loan">{{ s }}</span>
+        {% elif s == "Sold" %}<span class="badge badge-sold">{{ s }}</span>
+        {% elif s == "Damaged" %}<span class="badge badge-damaged">{{ s }}</span>
+        {% elif s == "In Repair" %}<span class="badge badge-in-repair">{{ s }}</span>
+        {% elif s == "Retired / Decommissioned" %}<span class="badge badge-retired">{{ s }}</span>
+        {% elif s == "Lost" %}<span class="badge badge-lost">{{ s }}</span>
+        {% else %}—{% endif %}
+      </td>
+      <td>{{ p.location or "—" }}</td>
+      <td>{{ p.receiving_date or "—" }}</td>
+      <td>
+        {% if p.certification_expiration_date %}
+          {{ p.certification_expiration_date }}
+          {% if p.certification_expiration_date < today %}
+            <span class="badge" style="background:#3d1a1a;color:#e05050;">Expired</span>
+          {% elif p.certification_expiration_date < today_30 %}
+            <span class="badge" style="background:#3d2e14;color:#c8902a;">Expiring</span>
+          {% endif %}
+        {% else %}
+          —
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="empty-state">
+  No products under this part number yet.
+  <a href="/inventory/product/new?parts_number={{ partnumber.parts_number }}" style="color:var(--accent)">Add one →</a>
+</div>
+{% endif %}
+
+<script>
+function filterProducts() {
+  const statusFilter = document.getElementById('filter-status').value;
+  const locationFilter = document.getElementById('filter-location').value;
+  const certFilter = document.getElementById('filter-cert').value;
+  
+  const rows = document.querySelectorAll('#products-table-body tr');
+  let visibleCount = 0;
+  
+  rows.forEach(row => {
+    const rowStatus = row.getAttribute('data-status');
+    const rowLocation = row.getAttribute('data-location');
+    const rowCert = row.getAttribute('data-cert');
+    const rowHasCert = row.getAttribute('data-has-cert');
+    
+    let show = true;
+    
+    if (statusFilter && rowStatus !== statusFilter) show = false;
+    if (locationFilter && rowLocation !== locationFilter) show = false;
+    if (certFilter === 'yes' && rowHasCert !== 'yes') show = false;
+    if (certFilter === 'no' && rowHasCert !== 'no') show = false;
+    if (certFilter === 'expired' && rowCert !== 'expired') show = false;
+    if (certFilter === 'expiring' && rowCert !== 'expiring') show = false;
+    
+    row.style.display = show ? '' : 'none';
+    if (show) visibleCount++;
+  });
+  
+  document.getElementById('product-count').textContent = visibleCount;
+}
+
+function clearFilters() {
+  document.getElementById('filter-status').value = '';
+  document.getElementById('filter-location').value = '';
+  document.getElementById('filter-cert').value = '';
+  filterProducts();
+}
+
+document.getElementById('filter-status').addEventListener('change', filterProducts);
+document.getElementById('filter-location').addEventListener('change', filterProducts);
+document.getElementById('filter-cert').addEventListener('change', filterProducts);
+</script>
+{% endblock %}

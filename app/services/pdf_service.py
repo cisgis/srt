@@ -260,7 +260,7 @@ def build_quote_pdf(quote: dict, client: dict, items: list) -> bytes:
         rows.append(
             [
                 it.get("parts_number", ""),
-                it.get("product_service_description", ""),
+                it.get("description", ""),
                 str(qty),
                 f"{price:,.2f}",
                 f"{qty * price:,.2f}T",
@@ -379,7 +379,7 @@ def build_packing_slip_pdf(
             [
                 str(i),
                 it.get("parts_number", ""),
-                it.get("product_service_description", ""),
+                it.get("description", ""),
                 str(it.get("quantity", "")),
                 it.get("dimensions", ""),
             ]
@@ -492,7 +492,7 @@ def build_invoice_pdf(
             [
                 str(i),
                 it.get("parts_number", ""),
-                it.get("product_service_description", ""),
+                it.get("description", ""),
                 str(it.get("quantity", "")),
                 it.get("dimensions", ""),
             ]

@@ -13,7 +13,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 @clients_router.get("/", response_class=HTMLResponse)
 def clients_list(request: Request):
     db = get_db()
-    clients = db.execute("SELECT * FROM Clients ORDER BY customer_name").fetchall()
+    clients = db.execute("SELECT * FROM Clients ORDER BY company, name").fetchall()
     db.close()
     return templates.TemplateResponse(
         "clients/list.html", {"request": request, "clients": clients}
@@ -22,20 +22,24 @@ def clients_list(request: Request):
 
 @clients_router.post("/new")
 async def client_create(
-    client_id: str = Form(...),
-    customer_name: str = Form(...),
-    well_name: str = Form(""),
-    well_address: str = Form(""),
+    name: str = Form(...),
+    department: str = Form(""),
+    company: str = Form(""),
+    phone: str = Form(""),
+    email: str = Form(""),
+    site_address: str = Form(""),
     billing_address: str = Form(""),
 ):
     db = get_db()
     db.execute(
-        "INSERT INTO Clients VALUES (?,?,?,?,?)",
+        "INSERT INTO Clients (name, department, company, phone, email, site_address, billing_address) VALUES (?,?,?,?,?,?,?)",
         (
-            client_id,
-            customer_name,
-            well_name or None,
-            well_address or None,
+            name,
+            department or None,
+            company or None,
+            phone or None,
+            email or None,
+            site_address or None,
             billing_address or None,
         ),
     )
@@ -46,19 +50,25 @@ async def client_create(
 
 @clients_router.post("/{client_id}/edit")
 async def client_edit(
-    client_id: str,
-    customer_name: str = Form(...),
-    well_name: str = Form(""),
-    well_address: str = Form(""),
+    client_id: int,
+    name: str = Form(...),
+    department: str = Form(""),
+    company: str = Form(""),
+    phone: str = Form(""),
+    email: str = Form(""),
+    site_address: str = Form(""),
     billing_address: str = Form(""),
 ):
     db = get_db()
     db.execute(
-        "UPDATE Clients SET customer_name=?, well_name=?, well_address=?, billing_address=? WHERE client_id=?",
+        "UPDATE Clients SET name=?, department=?, company=?, phone=?, email=?, site_address=?, billing_address=? WHERE client_id=?",
         (
-            customer_name,
-            well_name or None,
-            well_address or None,
+            name,
+            department or None,
+            company or None,
+            phone or None,
+            email or None,
+            site_address or None,
             billing_address or None,
             client_id,
         ),
@@ -69,7 +79,7 @@ async def client_edit(
 
 
 @clients_router.post("/{client_id}/delete")
-async def client_delete(client_id: str):
+async def client_delete(client_id: int):
     db = get_db()
     try:
         db.execute("DELETE FROM Clients WHERE client_id=?", (client_id,))
@@ -79,7 +89,7 @@ async def client_delete(client_id: str):
         return JSONResponse(
             status_code=409,
             content={
-                "error": f"Cannot delete client '{client_id}' because they have associated quotes, packing slips, or invoices. Remove those records first."
+                "error": f"Cannot delete this client because they have associated quotes, packing slips, or invoices. Remove those records first."
             },
         )
     db.close()
@@ -94,9 +104,9 @@ vendors_router = APIRouter(prefix="/vendors", tags=["vendors"])
 def vendors_list(request: Request):
     db = get_db()
     vendors = db.execute("""
-        SELECT v.*, COUNT(p.parts_number) as product_count
-        FROM Vendor v LEFT JOIN Product p ON v.vendor_id=p.vendor_id
-        GROUP BY v.vendor_id ORDER BY v.vendor_name
+        SELECT v.name, COUNT(pn.parts_number) as product_count
+        FROM Vendor v LEFT JOIN PartNumber pn ON v.name=pn.vendor_name
+        GROUP BY v.name ORDER BY v.name
     """).fetchall()
     db.close()
     return templates.TemplateResponse(
@@ -105,41 +115,93 @@ def vendors_list(request: Request):
 
 
 @vendors_router.post("/new")
-async def vendor_create(vendor_id: str = Form(...), vendor_name: str = Form(...)):
+async def vendor_create(name: str = Form(...)):
     db = get_db()
-    db.execute("INSERT INTO Vendor VALUES (?,?)", (vendor_id, vendor_name))
+    db.execute("INSERT INTO Vendor VALUES (?)", (name,))
     db.commit()
     db.close()
     return RedirectResponse("/vendors/", status_code=303)
 
 
-@vendors_router.post("/{vendor_id}/edit")
-async def vendor_edit(vendor_id: str, vendor_name: str = Form(...)):
+@vendors_router.post("/{name}/edit")
+async def vendor_edit(name: str, new_name: str = Form(...)):
     db = get_db()
+    db.execute("UPDATE Vendor SET name=? WHERE name=?", (new_name, name))
     db.execute(
-        "UPDATE Vendor SET vendor_name=? WHERE vendor_id=?", (vendor_name, vendor_id)
+        "UPDATE PartNumber SET vendor_name=? WHERE vendor_name=?", (new_name, name)
     )
     db.commit()
     db.close()
     return RedirectResponse("/vendors/", status_code=303)
 
 
-@vendors_router.post("/{vendor_id}/delete")
-async def vendor_delete(vendor_id: str):
+@vendors_router.post("/{name}/delete")
+async def vendor_delete(name: str):
     db = get_db()
     try:
-        db.execute("DELETE FROM Vendor WHERE vendor_id=?", (vendor_id,))
+        db.execute("DELETE FROM Vendor WHERE name=?", (name,))
         db.commit()
     except sqlite3.IntegrityError:
         db.close()
         return JSONResponse(
             status_code=409,
             content={
-                "error": f"Cannot delete vendor '{vendor_id}' because they have products assigned. Reassign or remove those products first."
+                "error": f"Cannot delete vendor '{name}' because they have products assigned. Reassign or remove those products first."
             },
         )
     db.close()
     return RedirectResponse("/vendors/", status_code=303)
+
+
+# ── Locations ──────────────────────────────────────────────────
+locations_router = APIRouter(prefix="/locations", tags=["locations"])
+
+
+@locations_router.get("/", response_class=HTMLResponse)
+def locations_list(request: Request):
+    db = get_db()
+    locations = db.execute("SELECT * FROM Location ORDER BY name").fetchall()
+    db.close()
+    return templates.TemplateResponse(
+        "locations/list.html", {"request": request, "locations": locations}
+    )
+
+
+@locations_router.post("/new")
+async def location_create(name: str = Form(...), address: str = Form("")):
+    db = get_db()
+    try:
+        db.execute("INSERT INTO Location VALUES (?,?)", (name, address or None))
+        db.commit()
+    except sqlite3.IntegrityError:
+        db.close()
+        return JSONResponse(
+            status_code=409,
+            content={"error": f"Location '{name}' already exists."},
+        )
+    db.close()
+    return RedirectResponse("/locations/", status_code=303)
+
+
+@locations_router.post("/{name}/delete")
+async def location_delete(name: str):
+    db = get_db()
+    db.execute("DELETE FROM Location WHERE name=?", (name,))
+    db.commit()
+    db.close()
+    return RedirectResponse("/locations/", status_code=303)
+
+
+@locations_router.post("/{name}/edit")
+async def location_edit(name: str, new_name: str = Form(...), address: str = Form("")):
+    db = get_db()
+    db.execute(
+        "UPDATE Location SET name=?, address=? WHERE name=?",
+        (new_name, address or None, name),
+    )
+    db.commit()
+    db.close()
+    return RedirectResponse("/locations/", status_code=303)
 
 
 # ── Customer Transactions ─────────────────────────────────────
@@ -169,7 +231,10 @@ def txn_ext_new(request: Request):
         "SELECT ps.*, c.customer_name FROM Packing_Slip ps LEFT JOIN Clients c ON ps.client_id=c.client_id ORDER BY ps.packing_slip_date DESC"
     ).fetchall()
     products = db.execute(
-        "SELECT parts_number, product_service_description, status FROM Product ORDER BY parts_number"
+        """SELECT p.serial_number, p.parts_number, pn.description, p.status 
+           FROM Product p 
+           JOIN PartNumber pn ON p.parts_number = pn.parts_number 
+           ORDER BY p.serial_number"""
     ).fetchall()
     db.close()
     return templates.TemplateResponse(
@@ -218,12 +283,12 @@ async def txn_ext_create(
         ),
     )
     tid = cur.lastrowid
-    for pn in parts_list:
+    for sn in parts_list:
         db.execute(
-            "INSERT INTO Transaction_External_Items (transaction_ext_id, parts_number) VALUES (?,?)",
-            (tid, pn),
+            "INSERT INTO Transaction_External_Items (transaction_ext_id, serial_number) VALUES (?,?)",
+            (tid, sn),
         )
-        db.execute("UPDATE Product SET status='On Loan' WHERE parts_number=?", (pn,))
+        db.execute("UPDATE Product SET status='On Loan' WHERE serial_number=?", (sn,))
     db.commit()
     db.close()
     return RedirectResponse("/transactions/customer/", status_code=303)
@@ -237,13 +302,13 @@ async def txn_ext_return(txn_id: int, inbound_date: str = Form(...)):
         (inbound_date, txn_id),
     )
     parts = db.execute(
-        "SELECT parts_number FROM Transaction_External_Items WHERE transaction_ext_id=?",
+        "SELECT serial_number FROM Transaction_External_Items WHERE transaction_ext_id=?",
         (txn_id,),
     ).fetchall()
     for p in parts:
         db.execute(
-            "UPDATE Product SET status='Available' WHERE parts_number=?",
-            (p["parts_number"],),
+            "UPDATE Product SET status='Available' WHERE serial_number=?",
+            (p["serial_number"],),
         )
     db.commit()
     db.close()
@@ -270,7 +335,10 @@ def txn_int_list(request: Request):
 def txn_int_new(request: Request):
     db = get_db()
     products = db.execute(
-        "SELECT parts_number, product_service_description, location, status FROM Product ORDER BY parts_number"
+        """SELECT p.serial_number, p.parts_number, pn.description, p.location, p.status 
+           FROM Product p 
+           JOIN PartNumber pn ON p.parts_number = pn.parts_number 
+           ORDER BY p.serial_number"""
     ).fetchall()
     warehouses = db.execute("SELECT * FROM Warehouse").fetchall()
     db.close()
@@ -320,13 +388,13 @@ async def txn_int_create(
         ),
     )
     tid = cur.lastrowid
-    for pn in parts_list:
+    for sn in parts_list:
         db.execute(
-            "INSERT INTO Transaction_Internal_Items (transaction_int_id, parts_number) VALUES (?,?)",
-            (tid, pn),
+            "INSERT INTO Transaction_Internal_Items (transaction_int_id, serial_number) VALUES (?,?)",
+            (tid, sn),
         )
         db.execute(
-            "UPDATE Product SET location=? WHERE parts_number=?", (to_location, pn)
+            "UPDATE Product SET location=? WHERE serial_number=?", (to_location, sn)
         )
     db.commit()
     db.close()

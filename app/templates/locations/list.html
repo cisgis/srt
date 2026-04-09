@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Locations — SRT{% endblock %}
+{% block page_title %}Locations{% endblock %}
+{% block page_sub %}Manage product locations{% endblock %}
+{% set active = "locations" %}
+{% block topbar_actions %}
+<button class="btn btn-primary" onclick="document.getElementById('add-modal').classList.add('open')">+ Add Location</button>
+{% endblock %}
+
+{% block content %}
+{% if locations %}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Location Name</th><th>Address</th><th></th></tr></thead>
+  <tbody>
+  {% for loc in locations %}
+  <tr>
+    <td>{{ loc.name }}</td>
+    <td>{{ loc.address or "—" }}</td>
+    <td style="text-align:right; display:flex; gap:6px; justify-content:flex-end;">
+      <button class="btn btn-sm" onclick="openEdit('{{ loc.name|replace("'","\\'")|e }}', '{{ (loc.address or "")|replace("'","\\'")|e }}')">Edit</button>
+      <form method="post" action="/locations/{{ loc.name|urlencode }}/delete" onsubmit="return confirm('Delete this location?')">
+        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="empty-state">No locations yet.</div>
+{% endif %}
+
+<div class="modal-overlay" id="add-modal">
+  <div class="modal">
+    <div class="modal-title">Add Location</div>
+    <form method="post" action="/locations/new">
+      <div class="form-group" style="margin-bottom:10px;"><label>Location Name *</label><input type="text" name="name" required></div>
+      <div class="form-group" style="margin-bottom:10px;"><label>Address</label><textarea name="address" rows="2" placeholder="Address for shipping quotes"></textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="document.getElementById('add-modal').classList.remove('open')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add Location</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <div class="modal-title">Edit Location</div>
+    <form method="post" id="edit-form">
+      <input type="hidden" name="original_name" id="original-name">
+      <div class="form-group" style="margin-bottom:10px;"><label>Location Name *</label><input type="text" name="new_name" id="edit-name" required></div>
+      <div class="form-group" style="margin-bottom:10px;"><label>Address</label><textarea name="address" id="edit-address" rows="2" placeholder="Address for shipping quotes"></textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="document.getElementById('edit-modal').classList.remove('open')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openEdit(name, address) {
+  document.getElementById('edit-form').action = '/locations/' + encodeURIComponent(name) + '/edit';
+  document.getElementById('original-name').value = name;
+  document.getElementById('edit-name').value = name;
+  document.getElementById('edit-address').value = address || '';
+  document.getElementById('edit-modal').classList.add('open');
+}
+</script>
+{% endblock %}

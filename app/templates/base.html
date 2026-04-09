@@ -12,8 +12,12 @@
   <!-- ── Sidebar ── -->
   <nav class="sidebar">
     <div class="sidebar-brand" style="justify-content: center; padding: 12px 10px;">
-      <img src="/static/img/logo.png" alt="Steel River Technologies" style="max-width: 100%; max-height: 100px; width: auto; height: auto; object-fit: contain;">
+      <a href="https://steelriver-tech.com/" target="_blank"><img src="/static/img/logo.png" alt="Steel River Technologies" style="max-width: 100%; max-height: 100px; width: auto; height: auto; object-fit: contain;"></a>
     </div>
+    <a href="/" class="sidebar-item {% if active=='home' %}active{% endif %}">
+      <svg viewBox="0 0 24 24" style="width:16px;height:16px;margin-right:8px;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+      Dashboard
+    </a>
 
     <div class="sidebar-group">
       <div class="sidebar-label">Stock</div>
@@ -22,6 +26,9 @@
       </a>
       <a href="/vendors/" class="sidebar-item {% if active=='vendors' %}active{% endif %}">
         Vendors
+      </a>
+      <a href="/locations/" class="sidebar-item {% if active=='locations' %}active{% endif %}">
+        Locations
       </a>
     </div>
 
@@ -37,18 +44,6 @@
       </a>
       <a href="/invoices/" class="sidebar-item {% if active=='invoices' %}active{% endif %}">
         Invoices
-      </a>
-    </div>
-
-    <div class="sidebar-divider"></div>
-
-    <div class="sidebar-group">
-      <div class="sidebar-label">Transactions</div>
-      <a href="/transactions/customer/" class="sidebar-item {% if active=='txn_customer' %}active{% endif %}">
-        Customer
-      </a>
-      <a href="/transactions/internal/" class="sidebar-item {% if active=='txn_internal' %}active{% endif %}">
-        Internal
       </a>
     </div>
 

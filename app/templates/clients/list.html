@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Clients — SRT{% endblock %}
 {% block page_title %}Clients{% endblock %}
-{% block page_sub %}Customer and well records{% endblock %}
+{% block page_sub %}Customer representatives and contacts{% endblock %}
 {% set active = "clients" %}
 {% block topbar_actions %}
 <button class="btn btn-primary" onclick="document.getElementById('add-modal').classList.add('open')">+ Add Client</button>
@@ -11,18 +11,27 @@
 {% if clients %}
 <div class="table-wrap">
 <table>
-  <thead><tr><th>Client ID</th><th>Customer Name</th><th>Well Name</th><th>Well Address</th><th>Billing Address</th><th></th></tr></thead>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Department</th>
+      <th>Company</th>
+      <th>Phone</th>
+      <th>Email</th>
+      <th></th>
+    </tr>
+  </thead>
   <tbody>
   {% for c in clients %}
   <tr>
-    <td style="font-family:var(--mono);font-size:12px;">{{ c.client_id }}</td>
-    <td>{{ c.customer_name }}</td>
-    <td>{{ c.well_name or "—" }}</td>
-    <td>{{ c.well_address or "—" }}</td>
-    <td>{{ c.billing_address or "—" }}</td>
-    <td style="display:flex;gap:6px;">
-      <button class="btn btn-sm" onclick="openEdit('{{ c.client_id }}','{{ c.customer_name|replace("'","\\'")|e }}','{{ (c.well_name or "")|replace("'","\\'")|e }}','{{ (c.well_address or "")|replace("'","\\'")|e }}','{{ (c.billing_address or "")|replace("'","\\'")|e }}')">Edit</button>
-      <form method="post" action="/clients/{{ c.client_id }}/delete" onsubmit="return confirm('Delete this client?')">
+    <td>{{ c.name }}</td>
+    <td>{{ c.department or "—" }}</td>
+    <td>{{ c.company or "—" }}</td>
+    <td>{{ c.phone or "—" }}</td>
+    <td>{{ c.email or "—" }}</td>
+    <td>
+      <button class="btn btn-sm" onclick="openEdit('{{ c.client_id }}','{{ c.name|replace("'","\\'")|e }}','{{ (c.department or "")|replace("'","\\'")|e }}','{{ (c.company or "")|replace("'","\\'")|e }}','{{ (c.phone or "")|replace("'","\\'")|e }}','{{ (c.email or "")|replace("'","\\'")|e }}','{{ (c.site_address or "")|replace("'","\\'")|e }}','{{ (c.billing_address or "")|replace("'","\\'")|e }}')">Edit</button>
+      <form method="post" action="/clients/{{ c.client_id }}/delete" onsubmit="return confirm('Delete this client?')" style="display:inline;">
         <button type="submit" class="btn btn-sm btn-danger">Delete</button>
       </form>
     </td>
@@ -39,12 +48,14 @@
 <div class="modal-overlay" id="add-modal">
   <div class="modal">
     <div class="modal-title">Add Client</div>
-    <form method="post" action="/clients/new">
-      <div class="form-group" style="margin-bottom:10px;"><label>Client ID *</label><input type="text" name="client_id" required></div>
-      <div class="form-group" style="margin-bottom:10px;"><label>Customer Name *</label><input type="text" name="customer_name" required></div>
-      <div class="form-group" style="margin-bottom:10px;"><label>Well Name</label><input type="text" name="well_name"></div>
-      <div class="form-group" style="margin-bottom:10px;"><label>Well Address</label><input type="text" name="well_address"></div>
-      <div class="form-group" style="margin-bottom:10px;"><label>Billing Address</label><textarea name="billing_address" rows="2"></textarea></div>
+    <form method="post" action="/clients/new" onsubmit="return validateForm(this)">
+      <div class="form-group"><label>Name *</label><input type="text" name="name" required></div>
+      <div class="form-group"><label>Department *</label><input type="text" name="department" required></div>
+      <div class="form-group"><label>Company *</label><input type="text" name="company" required></div>
+      <div class="form-group"><label>Phone *</label><input type="text" name="phone" required pattern="\d{3}-\d{3}-\d{4}" placeholder="000-000-0000"></div>
+      <div class="form-group"><label>Email *</label><input type="text" name="email" required placeholder="email@example.com"></div>
+      <div class="form-group"><label>Site Address *</label><textarea name="site_address" rows="2" required></textarea></div>
+      <div class="form-group"><label>Billing Address *</label><textarea name="billing_address" rows="2" required></textarea></div>
       <div class="modal-actions">
         <button type="button" class="btn" onclick="document.getElementById('add-modal').classList.remove('open')">Cancel</button>
         <button type="submit" class="btn btn-primary">Add Client</button>
@@ -57,11 +68,14 @@
 <div class="modal-overlay" id="edit-modal">
   <div class="modal">
     <div class="modal-title">Edit Client</div>
-    <form method="post" id="edit-form">
-      <div class="form-group" style="margin-bottom:10px;"><label>Customer Name *</label><input type="text" name="customer_name" id="edit-name" required></div>
-      <div class="form-group" style="margin-bottom:10px;"><label>Well Name</label><input type="text" name="well_name" id="edit-well-name"></div>
-      <div class="form-group" style="margin-bottom:10px;"><label>Well Address</label><input type="text" name="well_address" id="edit-well-addr"></div>
-      <div class="form-group" style="margin-bottom:10px;"><label>Billing Address</label><textarea name="billing_address" id="edit-billing" rows="2"></textarea></div>
+    <form method="post" id="edit-form" onsubmit="return validateForm(this)">
+      <div class="form-group"><label>Name *</label><input type="text" name="name" id="edit-name" required></div>
+      <div class="form-group"><label>Department *</label><input type="text" name="department" id="edit-department" required></div>
+      <div class="form-group"><label>Company *</label><input type="text" name="company" id="edit-company" required></div>
+      <div class="form-group"><label>Phone *</label><input type="tel" name="phone" id="edit-phone" required pattern="\d{3}-\d{3}-\d{4}" placeholder="000-000-0000"></div>
+      <div class="form-group"><label>Email *</label><input type="email" name="email" id="edit-email" required></div>
+      <div class="form-group"><label>Site Address *</label><textarea name="site_address" id="edit-site" rows="2" required></textarea></div>
+      <div class="form-group"><label>Billing Address *</label><textarea name="billing_address" id="edit-billing" rows="2" required></textarea></div>
       <div class="modal-actions">
         <button type="button" class="btn" onclick="document.getElementById('edit-modal').classList.remove('open')">Cancel</button>
         <button type="submit" class="btn btn-primary">Save</button>
@@ -73,13 +87,56 @@
 
 {% block scripts %}
 <script>
-function openEdit(id, name, wellName, wellAddr, billing) {
+function openEdit(id, name, dept, company, phone, email, site, billing) {
   document.getElementById("edit-form").action = "/clients/" + id + "/edit";
-  document.getElementById("edit-name").value      = name;
-  document.getElementById("edit-well-name").value = wellName;
-  document.getElementById("edit-well-addr").value = wellAddr;
-  document.getElementById("edit-billing").value   = billing;
+  document.getElementById("edit-name").value = name;
+  document.getElementById("edit-department").value = dept;
+  document.getElementById("edit-company").value = company;
+  document.getElementById("edit-phone").value = phone;
+  document.getElementById("edit-email").value = email;
+  document.getElementById("edit-site").value = site;
+  document.getElementById("edit-billing").value = billing;
   document.getElementById("edit-modal").classList.add("open");
+}
+
+function validateEmail(email) {
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return re.test(email);
+}
+
+function validatePhone(phone) {
+  const re = /^\d{3}-\d{3}-\d{4}$/;
+  return re.test(phone);
+}
+
+function validateField(field, isValid, errorMsg) {
+  let errorEl = field.parentElement.querySelector('.field-error');
+  if (!isValid) {
+    field.classList.add('error');
+    if (!errorEl) {
+      errorEl = document.createElement('div');
+      errorEl.className = 'field-error';
+      errorEl.style.color = '#e53935';
+      errorEl.style.fontSize = '12px';
+      errorEl.style.marginTop = '4px';
+      field.parentElement.appendChild(errorEl);
+    }
+    errorEl.textContent = errorMsg;
+  } else {
+    field.classList.remove('error');
+    if (errorEl) errorEl.remove();
+  }
+  return isValid;
+}
+
+function validateForm(form) {
+  const email = form.querySelector('input[name="email"]');
+  const phone = form.querySelector('input[name="phone"]');
+  
+  const emailValid = validateField(email, validateEmail(email.value), 'Enter a valid email (e.g. name@example.com)');
+  const phoneValid = validateField(phone, validatePhone(phone.value), 'Phone must be in format: 000-000-0000');
+  
+  return emailValid && phoneValid;
 }
 </script>
 {% endblock %}

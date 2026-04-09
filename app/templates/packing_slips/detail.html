@@ -1,105 +1,17 @@
 {% extends "base.html" %}
-{% block title %}{{ pl.packing_slip_number }} — SRT{% endblock %}
-{% block page_title %}{{ pl.packing_slip_number }}{% endblock %}
-{% block page_sub %}Packing Slip{% endblock %}
+{% block title %}Packing Slips — SRT{% endblock %}
+{% block page_title %}Packing Slips{% endblock %}
+{% block page_sub %}{% endblock %}
 {% set active = "packing_slips" %}
 
 {% block topbar_actions %}
-<a href="/packing-slips/" class="btn">← Packing Slips</a>
-<a href="/packing-slips/{{ pl.packing_slip_number }}/pdf" class="btn" target="_blank">Download PDF</a>
-<button class="btn btn-primary" onclick="openEmailModal()">Send to Customer</button>
-<a href="/invoices/new?from_pl={{ pl.packing_slip_number }}" class="btn">→ Create Invoice</a>
+<a href="/packing-slips/" class="btn">← Back</a>
 {% endblock %}
 
 {% block content %}
-<div style="display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start;">
-  <div>
-    <div class="card" style="margin-bottom:16px;">
-      <div class="card-title">Packing Slip Details</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;">
-        <div class="detail-row"><div class="detail-label">PL Number</div><div class="detail-value doc-num">{{ pl.packing_slip_number }}</div></div>
-        <div class="detail-row"><div class="detail-label">Date</div><div class="detail-value">{{ pl.packing_slip_date }}</div></div>
-        <div class="detail-row"><div class="detail-label">Quote Ref</div>
-          <div class="detail-value">{% if quote %}<a href="/quotes/{{ quote.quote_number }}" class="doc-num">{{ quote.quote_number }}</a>{% else %}—{% endif %}</div>
-        </div>
-        <div class="detail-row"><div class="detail-label">P.O. Number</div><div class="detail-value">{{ pl.po_number or "—" }}</div></div>
-        <div class="detail-row"><div class="detail-label">Ship Via</div><div class="detail-value">{{ pl.ship_via or "—" }}</div></div>
-        <div class="detail-row"><div class="detail-label">Delivered By</div><div class="detail-value">{{ pl.delivered_by or "—" }}</div></div>
-        <div class="detail-row"><div class="detail-label">Ship From</div><div class="detail-value">{{ pl.ship_from or "—" }}</div></div>
-        <div class="detail-row"><div class="detail-label">Ship To</div><div class="detail-value">{{ pl.ship_to or "—" }}</div></div>
-        {% if quote %}<div class="detail-row"><div class="detail-label">Terms</div><div class="detail-value">{{ quote.payment_term or "—" }}</div></div>{% endif %}
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Line Items</div>
-      <div class="table-wrap">
-      <table>
-        <thead><tr><th>SN</th><th>PN</th><th>Description</th><th>Qty</th><th>Weight</th><th>Dimensions</th></tr></thead>
-        <tbody>
-        {% for it in items %}
-        <tr>
-          <td>{{ loop.index }}</td>
-          <td class="doc-num">{{ it.parts_number }}</td>
-          <td>{{ it.product_service_description }}</td>
-          <td>{{ it.quantity }}</td>
-          <td>{{ it.weight or "—" }}</td>
-          <td>{{ it.dimensions or "—" }}</td>
-        </tr>
-        {% endfor %}
-        {% if not items %}<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px;">No items</td></tr>{% endif %}
-        </tbody>
-      </table>
-      </div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Bill To / Ship To</div>
-    {% if client %}
-    <div class="detail-row"><div class="detail-label">Customer</div><div class="detail-value">{{ client.customer_name }}</div></div>
-    <div class="detail-row"><div class="detail-label">Billing Address</div><div class="detail-value">{{ client.billing_address or "—" }}</div></div>
-    <div class="detail-row"><div class="detail-label">Well Name</div><div class="detail-value">{{ client.well_name or "—" }}</div></div>
-    <div class="detail-row"><div class="detail-label">Well Address</div><div class="detail-value">{{ client.well_address or "—" }}</div></div>
-    {% else %}<div style="color:var(--text3);font-size:12px;">No client linked</div>{% endif %}
-  </div>
+<div class="empty-state">
+  <div style="font-size: 48px; margin-bottom: 16px;">🚧</div>
+  <h2>Under Construction</h2>
+  <p>Packing slip management is being updated. Check back soon.</p>
 </div>
-
-<div class="modal-overlay" id="email-modal">
-  <div class="modal">
-    <div class="modal-title">Send Packing Slip to Customer</div>
-    <div class="form-group" style="margin-bottom:10px;"><label>To</label><input type="email" id="email-to" placeholder="customer@example.com"></div>
-    <div class="form-group" style="margin-bottom:10px;"><label>Subject</label><input type="text" id="email-subject" value="Packing Slip {{ pl.packing_slip_number }} — Steel River Technologies"></div>
-    <div class="form-group" style="margin-bottom:10px;"><label>Message</label>
-      <textarea id="email-body" rows="4">Please find attached Packing Slip {{ pl.packing_slip_number }}.
-
-Steel River Technologies | 432-618-0169</textarea>
-    </div>
-    <div id="email-status" style="font-size:12px;margin-bottom:6px;"></div>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeEmailModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="sendEmail()">Send PDF</button>
-    </div>
-  </div>
-</div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-function openEmailModal() { document.getElementById("email-modal").classList.add("open"); }
-function closeEmailModal() { document.getElementById("email-modal").classList.remove("open"); }
-async function sendEmail() {
-  const btn = event.target; btn.disabled=true; btn.textContent="Sending…";
-  const fd = new FormData();
-  fd.append("to_email", document.getElementById("email-to").value);
-  fd.append("subject",  document.getElementById("email-subject").value);
-  fd.append("body",     document.getElementById("email-body").value);
-  const res  = await fetch("/packing-slips/{{ pl.packing_slip_number }}/send", {method:"POST",body:fd});
-  const data = await res.json();
-  const st   = document.getElementById("email-status");
-  if (data.ok) { st.textContent="✓ Sent."; st.style.color="var(--green)"; setTimeout(closeEmailModal,1200); }
-  else { st.textContent="Error: "+(data.error||"unknown"); st.style.color="var(--red-light)"; }
-  btn.disabled=false; btn.textContent="Send PDF";
-}
-</script>
 {% endblock %}

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{% if partnumber %}Edit Part Number{% else %}New Part Number{% endif %} — SRT{% endblock %}
+{% block page_title %}{% if partnumber %}Edit Part Number{% else %}New Part Number{% endif %}{% endblock %}
+{% block page_sub %}{% if partnumber %}{{ partnumber.parts_number }}{% else %}Create a new part number category{% endif %}{% endblock %}
+{% set active = "inventory" %}
+
+{% block content %}
+<form method="post" class="form">
+  <div class="form-grid">
+    <div class="form-group">
+      <label for="parts_number">Part Number *</label>
+      <input type="text" id="parts_number" name="parts_number" value="{{ partnumber.parts_number if partnumber else '' }}" required {% if partnumber %}readonly{% endif %}>
+      {% if partnumber %}
+      <small>Part number cannot be changed after creation</small>
+      {% endif %}
+    </div>
+
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <label for="description">Description</label>
+      <textarea id="description" name="description" rows="2">{{ partnumber.description if partnumber else '' }}</textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="cost_price">Cost Price</label>
+      <input type="number" id="cost_price" name="cost_price" step="0.01" value="{{ partnumber.cost_price if partnumber and partnumber.cost_price else '' }}">
+    </div>
+
+    <div class="form-group">
+      <label for="resale_price">Resale Price</label>
+      <input type="number" id="resale_price" name="resale_price" step="0.01" value="{{ partnumber.resale_price if partnumber and partnumber.resale_price else '' }}">
+    </div>
+
+    <div class="form-group">
+      <label for="rental_price">Rental Price</label>
+      <input type="number" id="rental_price" name="rental_price" step="0.01" value="{{ partnumber.rental_price if partnumber and partnumber.rental_price else '' }}">
+    </div>
+
+    <div class="form-group">
+      <label for="weight">Weight (lbs)</label>
+      <input type="number" id="weight" name="weight" step="0.01" value="{{ partnumber.weight if partnumber and partnumber.weight else '' }}">
+    </div>
+
+    <div class="form-group">
+      <label for="dimensions">Dimensions</label>
+      <input type="text" id="dimensions" name="dimensions" placeholder="e.g., 10x20x30" value="{{ partnumber.dimensions if partnumber else '' }}">
+    </div>
+
+    <div class="form-group">
+      <label for="vendor_name">Vendor</label>
+      <select id="vendor_name" name="vendor_name">
+        <option value="">— None —</option>
+        {% for v in vendors %}
+        <option value="{{ v.name }}" {% if partnumber and partnumber.vendor_name == v.name %}selected{% endif %}>{{ v.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <a href="/inventory/" class="btn">Cancel</a>
+    <button type="submit" class="btn btn-primary">
+      {% if partnumber %}Save Changes{% else %}Create Part Number{% endif %}
+    </button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block title %}{{ product.serial_number }} — SRT{% endblock %}
+{% block page_title %}{{ product.serial_number }}{% endblock %}
+{% block page_sub %}{{ product.parts_description or 'Product Detail' }}{% endblock %}
+{% set active = "inventory" %}
+
+{% block topbar_actions %}
+<a href="/inventory/product/{{ product.serial_number }}/edit" class="btn">
+  Edit Product
+</a>
+<a href="/inventory/part-number/{{ product.parts_number }}" class="btn">
+  Back to {{ product.parts_number }}
+</a>
+{% endblock %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px;">
+  <div class="detail-section">
+    <h3>Identification</h3>
+    <div class="detail-row">
+      <span class="detail-label">Serial Number</span>
+      <span class="detail-value">{{ product.serial_number }}</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Part Number</span>
+      <span class="detail-value"><a href="/inventory/part-number/{{ product.parts_number }}">{{ product.parts_number }}</a></span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Vendor</span>
+      <span class="detail-value">{{ product.vendor_name or "—" }}</span>
+    </div>
+  </div>
+
+  <div class="detail-section">
+    <h3>Pricing (from Part Number)</h3>
+    <div class="detail-row">
+      <span class="detail-label">Purchase Price</span>
+      <span class="detail-value">${{ "%.2f"|format(purchase_price) if purchase_price else "—" }}</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Rental Price (per day)</span>
+      <span class="detail-value">${{ "%.2f"|format(rental_price) if rental_price else "—" }}</span>
+    </div>
+  </div>
+
+  <div class="detail-section">
+    <h3>Financials</h3>
+    <div class="detail-row">
+      <span class="detail-label">TCO</span>
+      <span class="detail-value">—</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">ROI</span>
+      <span class="detail-value">—</span>
+    </div>
+  </div>
+</div>
+
+<form method="post" action="/inventory/product/{{ product.serial_number }}/edit" enctype="multipart/form-data" id="product-details-form">
+  <div class="card">
+    <div class="card-title">Product Details</div>
+    <div class="form-grid-3">
+      <div class="form-group">
+        <label for="receiving_date">Receiving Date</label>
+        <input type="date" id="receiving_date" name="receiving_date" value="{{ product.receiving_date or '' }}" required>
+      </div>
+      <div class="form-group">
+        <label for="certification_expiration_date">Cert Expiration</label>
+        <input type="date" id="certification_expiration_date" name="certification_expiration_date" value="{{ product.certification_expiration_date or '' }}">
+      </div>
+    </div>
+    <div class="form-grid" style="margin-top: 14px;">
+      <div class="form-group">
+        <label for="mtr_file">MTR File</label>
+        {% if product.mtr_filename %}
+        <div style="margin: 4px 0;"><a href="/uploads/{{ product.mtr_filename }}" target="_blank">{{ product.mtr_filename }}</a></div>
+        {% endif %}
+        <input type="file" id="mtr_file" name="mtr_file" accept=".pdf,.jpg,.jpeg,.png">
+        <small style="color:#666;">Max 10MB</small>
+        <small id="mtr-error" style="color:#e07070;display:none;">File exceeds 10MB limit</small>
+      </div>
+      <div class="form-group">
+        <label for="drawing_file">Drawing File</label>
+        {% if product.drawing_filename %}
+        <div style="margin: 4px 0;"><a href="/uploads/{{ product.drawing_filename }}" target="_blank">{{ product.drawing_filename }}</a></div>
+        {% endif %}
+        <input type="file" id="drawing_file" name="drawing_file" accept=".pdf,.jpg,.jpeg,.png">
+        <small style="color:#666;">Max 10MB</small>
+        <small id="drawing-error" style="color:#e07070;display:none;">File exceeds 10MB limit</small>
+      </div>
+    </div>
+    <div style="margin-top: 16px;">
+      <button type="submit" class="btn btn-primary">Save Details</button>
+    </div>
+  </div>
+</form>
+
+{% if not updates_disabled %}
+<form method="post" action="/inventory/product/{{ product.serial_number }}/edit" enctype="multipart/form-data">
+  <div class="card">
+    <div class="card-title">Update Status & Location</div>
+    <div class="form-grid-3">
+      <div class="form-group">
+        <label for="status">Status</label>
+        <select id="status" name="status">
+          <option value="">— No Change —</option>
+          {% for s in status_options %}
+          <option value="{{ s }}" {% if product.status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="location">Location</label>
+        <select id="location" name="location">
+          <option value="">— No Change —</option>
+          {% for loc in locations %}
+          <option value="{{ loc.name }}" {% if product.location == loc.name %}selected{% endif %}>{{ loc.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="change_date">Change Date</label>
+        <input type="date" id="change_date" name="change_date" value="" min="{{ min_change_date or '' }}">
+        {% if min_change_date %}
+        <small>Must be on or after {{ min_change_date }}</small>
+        {% endif %}
+      </div>
+    </div>
+    <div style="margin-top: 16px;">
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+    </div>
+  </div>
+</form>
+{% else %}
+<div class="card">
+  <div class="card-title">Update Status & Location</div>
+  <p style="color: #666; font-style: italic;">Updates disabled — product status is "{{ product.status }}" (end-of-life).</p>
+</div>
+{% endif %}
+
+{% if lifecycle %}
+<h3 style="margin-top: 2rem;">
+  Product History
+  {% if total_on_loan_days > 0 %}
+  <span style="font-size: 0.85em; font-weight: normal; color: #666;"> — Total on loan: {{ total_on_loan_days }} day{{ "s" if total_on_loan_days != 1 else "" }}</span>
+  {% endif %}
+</h3>
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Date</th>
+      <th>Status Change</th>
+      <th>Location Change</th>
+      <th>Transaction Type</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for entry in lifecycle %}
+    <tr>
+      <td>{{ entry.change_date or "—" }}</td>
+      <td>
+        {% set disp_old_status = entry.old_status if entry.old_status else product_status %}
+        {% set disp_new_status = entry.new_status if entry.new_status else disp_old_status %}
+        {{ disp_old_status }} → {{ disp_new_status }}
+      </td>
+      <td>
+        {% set disp_old_loc = entry.old_location if entry.old_location else product_location %}
+        {% set disp_new_loc = entry.new_location if entry.new_location else disp_old_loc %}
+        {{ disp_old_loc or "—" }} → {{ disp_new_loc or "—" }}
+      </td>
+      <td>
+        {% if entry.transaction_type == "INTERNAL" %}
+        <span class="badge badge-internal">Internal</span>
+        {% else %}
+        <span class="badge badge-external">External</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MAX_SIZE = 10 * 1024 * 1024;
+
+function validateFile(input, errorId) {
+  const error = document.getElementById(errorId);
+  if (input.files && input.files[0]) {
+    if (input.files[0].size > MAX_SIZE) {
+      error.style.display = 'block';
+      input.style.borderColor = '#e07070';
+      return false;
+    }
+  }
+  error.style.display = 'none';
+  input.style.borderColor = '';
+  return true;
+}
+
+document.getElementById('mtr_file').addEventListener('change', function() {
+  validateFile(this, 'mtr-error');
+});
+
+document.getElementById('drawing_file').addEventListener('change', function() {
+  validateFile(this, 'drawing-error');
+});
+
+document.getElementById('product-details-form').addEventListener('submit', function(e) {
+  const mtr = document.getElementById('mtr_file');
+  const drawing = document.getElementById('drawing_file');
+  
+  if (!validateFile(mtr, 'mtr-error') || !validateFile(drawing, 'drawing-error')) {
+    e.preventDefault();
+    return false;
+  }
+});
+
+// Set change date to today
+document.getElementById('change_date').valueAsDate = new Date();
+</script>
+{% endblock %}
