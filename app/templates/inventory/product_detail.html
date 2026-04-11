@@ -5,9 +5,6 @@
 {% set active = "inventory" %}
 
 {% block topbar_actions %}
-<a href="/inventory/product/{{ product.serial_number }}/edit" class="btn">
-  Edit Product
-</a>
 <a href="/inventory/part-number/{{ product.parts_number }}" class="btn">
   Back to {{ product.parts_number }}
 </a>
@@ -22,7 +19,7 @@
       <span class="detail-value">{{ product.serial_number }}</span>
     </div>
     <div class="detail-row">
-      <span class="detail-label">Part Number</span>
+      <span class="detail-label">Catalog Item</span>
       <span class="detail-value"><a href="/inventory/part-number/{{ product.parts_number }}">{{ product.parts_number }}</a></span>
     </div>
     <div class="detail-row">
@@ -32,10 +29,14 @@
   </div>
 
   <div class="detail-section">
-    <h3>Pricing (from Part Number)</h3>
+    <h3>Pricing (from Catalog)</h3>
     <div class="detail-row">
       <span class="detail-label">Purchase Price</span>
       <span class="detail-value">${{ "%.2f"|format(purchase_price) if purchase_price else "—" }}</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Resale Price</span>
+      <span class="detail-value">${{ "%.2f"|format(resale_price) if resale_price else "—" }}</span>
     </div>
     <div class="detail-row">
       <span class="detail-label">Rental Price (per day)</span>

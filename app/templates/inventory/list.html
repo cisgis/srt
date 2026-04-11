@@ -1,19 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Inventory — SRT{% endblock %}
 {% block page_title %}Inventory Overview{% endblock %}
-{% block page_sub %}Part numbers and product tracking{% endblock %}
+{% block page_sub %}Catalog items and product tracking{% endblock %}
 {% set active = "inventory" %}
 
 {% block topbar_actions %}
 <a href="/inventory/part-number/new" class="btn btn-primary">
   <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-  Add Part Number
+  Add Catalog Item
 </a>
 {% endblock %}
 
 {% block content %}
 <form method="get" class="search-bar" id="filter-form">
-  <input type="text" name="search" placeholder="Search part number…" value="{{ search }}">
+  <input type="text" name="search" placeholder="Search catalog…" value="{{ search }}">
   <select name="location" id="filter-location">
     <option value="">All locations</option>
     {% for loc in locations %}
@@ -54,7 +54,7 @@ document.getElementById('filter-vendor').addEventListener('change', function() {
 <table>
   <thead>
     <tr>
-      <th>Part No.</th>
+      <th>Catalog</th>
       <th>Description</th>
       <th>Total</th>
       <th>Available</th>
@@ -128,7 +128,7 @@ document.getElementById('filter-vendor').addEventListener('change', function() {
 </div>
 {% else %}
 <div class="empty-state">
-  No part numbers found.
+  No catalog items found.
   <a href="/inventory/part-number/new" style="color:var(--accent)">Add one →</a>
 </div>
 {% endif %}

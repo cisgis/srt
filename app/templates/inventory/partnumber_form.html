@@ -1,17 +1,17 @@
 {% extends "base.html" %}
-{% block title %}{% if partnumber %}Edit Part Number{% else %}New Part Number{% endif %} — SRT{% endblock %}
-{% block page_title %}{% if partnumber %}Edit Part Number{% else %}New Part Number{% endif %}{% endblock %}
-{% block page_sub %}{% if partnumber %}{{ partnumber.parts_number }}{% else %}Create a new part number category{% endif %}{% endblock %}
+{% block title %}{% if partnumber %}Edit Catalog Item{% else %}New Catalog Item{% endif %} — SRT{% endblock %}
+{% block page_title %}{% if partnumber %}Edit Catalog Item{% else %}New Catalog Item{% endif %}{% endblock %}
+{% block page_sub %}{% if partnumber %}{{ partnumber.parts_number }}{% else %}Create a new catalog item{% endif %}{% endblock %}
 {% set active = "inventory" %}
 
 {% block content %}
 <form method="post" class="form">
   <div class="form-grid">
     <div class="form-group">
-      <label for="parts_number">Part Number *</label>
+      <label for="parts_number">Catalog ID *</label>
       <input type="text" id="parts_number" name="parts_number" value="{{ partnumber.parts_number if partnumber else '' }}" required {% if partnumber %}readonly{% endif %}>
       {% if partnumber %}
-      <small>Part number cannot be changed after creation</small>
+      <small>Catalog ID cannot be changed after creation</small>
       {% endif %}
     </div>
 
@@ -59,7 +59,7 @@
   <div class="form-actions">
     <a href="/inventory/" class="btn">Cancel</a>
     <button type="submit" class="btn btn-primary">
-      {% if partnumber %}Save Changes{% else %}Create Part Number{% endif %}
+      {% if partnumber %}Save Changes{% else %}Create Catalog Item{% endif %}
     </button>
   </div>
 </form>

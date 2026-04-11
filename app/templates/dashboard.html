@@ -7,7 +7,7 @@
 <div class="stats-grid">
   <div class="stat-card">
     <div class="stat-card-num">{{ stats.total_products }}</div>
-    <div class="stat-card-label">Total products</div>
+    <div class="stat-card-label">Total Products</div>
   </div>
   <div class="stat-card">
     <div class="stat-card-num">{{ stats.available }}</div>
@@ -19,7 +19,7 @@
   </div>
   <div class="stat-card">
     <div class="stat-card-num">{{ stats.open_pls }}</div>
-    <div class="stat-card-label">Packing slips</div>
+    <div class="stat-card-label">Packing Slips</div>
   </div>
   <div class="stat-card">
     <div class="stat-card-num">{{ stats.open_invoices }}</div>
@@ -31,7 +31,7 @@
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
   <div class="card">
     <div class="card-title">Recent Quotes</div>
     {% if recent_quotes %}
@@ -48,7 +48,11 @@
       </tbody>
     </table>
     {% else %}
-    <div class="empty-state">No quotes yet</div>
+    <div class="empty-state" style="padding: 32px 16px;">
+      <div style="font-size: 28px; margin-bottom: 8px; opacity: 0.3;">📄</div>
+      No quotes yet
+      <a href="/quotes/new">Create your first quote →</a>
+    </div>
     {% endif %}
   </div>
 
@@ -68,7 +72,11 @@
       </tbody>
     </table>
     {% else %}
-    <div class="empty-state">No packing slips yet</div>
+    <div class="empty-state" style="padding: 32px 16px;">
+      <div style="font-size: 28px; margin-bottom: 8px; opacity: 0.3;">📦</div>
+      No packing slips yet
+      <a href="/packing-slips/new">Create your first packing slip →</a>
+    </div>
     {% endif %}
   </div>
 </div>

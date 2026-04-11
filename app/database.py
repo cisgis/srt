@@ -15,6 +15,29 @@ def init_db():
     conn = get_db()
     conn.executescript(SCHEMA)
     conn.commit()
+
+    if conn.execute("SELECT COUNT(*) FROM Location").fetchone()[0] == 0:
+        conn.execute("INSERT INTO Location (name, is_yard) VALUES ('Midland Yard', 1)")
+        conn.execute("INSERT INTO Location (name, is_yard) VALUES ('Houston Yard', 1)")
+        conn.commit()
+
+    if conn.execute("SELECT COUNT(*) FROM Status").fetchone()[0] == 0:
+        statuses = [
+            ("Available", 1),
+            ("Pending Cert", 2),
+            ("On Loan", 3),
+            ("Sold", 4),
+            ("Damaged", 5),
+            ("In Repair", 6),
+            ("Retired / Decommissioned", 7),
+            ("Lost", 8),
+        ]
+        for name, order in statuses:
+            conn.execute(
+                "INSERT INTO Status (name, display_order) VALUES (?,?)", (name, order)
+            )
+        conn.commit()
+
     conn.close()
 
 
@@ -92,7 +115,12 @@ CREATE TABLE IF NOT EXISTS Warehouse (
 );
 CREATE TABLE IF NOT EXISTS Location (
     name TEXT PRIMARY KEY,
-    address TEXT
+    address TEXT,
+    is_yard INTEGER DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS Status (
+    name TEXT PRIMARY KEY,
+    display_order INTEGER DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS Quote (
     quote_number          TEXT PRIMARY KEY,

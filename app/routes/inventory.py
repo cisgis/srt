@@ -10,19 +10,21 @@ from app.database import get_db
 router = APIRouter(prefix="/inventory", tags=["inventory"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
-STATUS_OPTIONS = [
-    "Available",
-    "Pending Cert",
-    "On Loan",
-    "Sold",
-    "Damaged",
-    "In Repair",
-    "Retired / Decommissioned",
-    "Lost",
-]
 
-LOCATIONS = ["Midland Yard", "Houston Yard", "On Rent", "Client Site"]
-YARD_LOCATIONS = ["Midland Yard", "Houston Yard"]
+def get_status_options():
+    db = get_db()
+    rows = db.execute("SELECT name FROM Status ORDER BY display_order").fetchall()
+    db.close()
+    return [r["name"] for r in rows]
+
+
+def get_yard_locations():
+    db = get_db()
+    rows = db.execute(
+        "SELECT name FROM Location WHERE is_yard=1 ORDER BY name"
+    ).fetchall()
+    db.close()
+    return [r["name"] for r in rows]
 
 
 @router.get("/api/check-sn/{serial_number}")
@@ -98,7 +100,7 @@ def inventory_overview(
             "partnumbers": partnumbers,
             "vendors": vendors,
             "locations": locations,
-            "status_options": STATUS_OPTIONS,
+            "status_options": get_status_options(),
             "search": search,
             "filter_location": location,
             "filter_status": status,
@@ -196,7 +198,7 @@ def partnumber_detail(request: Request, parts_number: str):
             "products": products,
             "vendors": vendors,
             "locations": locations,
-            "status_options": STATUS_OPTIONS,
+            "status_options": get_status_options(),
             "today": today_str,
             "today_30": today_30_str,
         },
@@ -264,7 +266,9 @@ def product_new(request: Request, parts_number: str = ""):
         "SELECT * FROM PartNumber ORDER BY parts_number"
     ).fetchall()
     all_locations = db.execute("SELECT * FROM Location ORDER BY name").fetchall()
-    yard_locations = [loc for loc in all_locations if loc["name"] in YARD_LOCATIONS]
+    yard_locations = db.execute(
+        "SELECT name FROM Location WHERE is_yard=1 ORDER BY name"
+    ).fetchall()
     db.close()
 
     suggested_serial = ""
@@ -280,7 +284,7 @@ def product_new(request: Request, parts_number: str = ""):
             "preselected_parts_number": parts_number,
             "fixed_parts_number": parts_number if parts_number else None,
             "suggested_serial": suggested_serial,
-            "status_options": STATUS_OPTIONS,
+            "status_options": get_status_options(),
             "locations": yard_locations,
         },
     )
@@ -354,7 +358,7 @@ async def product_create(
 def product_detail(request: Request, serial_number: str):
     db = get_db()
     product = db.execute(
-        """SELECT p.*, pn.description as parts_description, pn.cost_price as purchase_price, pn.rental_price, v.name as vendor_name
+        """SELECT p.*, pn.description as parts_description, pn.cost_price as purchase_price, pn.resale_price, pn.rental_price, v.name as vendor_name
            FROM Product p
            LEFT JOIN PartNumber pn ON p.parts_number = pn.parts_number
            LEFT JOIN Vendor v ON pn.vendor_name = v.name
@@ -364,7 +368,7 @@ def product_detail(request: Request, serial_number: str):
 
     ext_txns = db.execute(
         """
-        SELECT te.*, ps.packing_slip_number, c.customer_name
+        SELECT te.*, ps.packing_slip_number, c.name as customer_name
         FROM Transaction_External te
         JOIN Packing_Slip ps ON te.packing_slip_id=ps.packing_slip_number
         LEFT JOIN Clients c ON ps.client_id=c.client_id
@@ -425,6 +429,7 @@ def product_detail(request: Request, serial_number: str):
     updates_disabled = product["status"] in end_statuses if product else False
 
     purchase_price = product["purchase_price"] if product else None
+    resale_price = product["resale_price"] if product else None
     rental_price = product["rental_price"] if product else None
 
     locations = db.execute("SELECT * FROM Location ORDER BY name").fetchall()
@@ -436,12 +441,13 @@ def product_detail(request: Request, serial_number: str):
             "product": product,
             "product_status": product["status"] if product else None,
             "product_location": product["location"] if product else None,
-            "status_options": STATUS_OPTIONS,
+            "status_options": get_status_options(),
             "ext_txns": ext_txns,
             "int_txns": int_txns,
             "lifecycle": lifecycle,
             "locations": locations,
             "purchase_price": purchase_price,
+            "resale_price": resale_price,
             "rental_price": rental_price,
             "min_change_date": min_change_date,
             "updates_disabled": updates_disabled,
@@ -523,7 +529,8 @@ async def product_edit(
                     status_code=400,
                 )
 
-        is_yard = lambda loc: loc and loc in YARD_LOCATIONS
+        yard_locs = get_yard_locations()
+        is_yard = lambda loc: loc and loc in yard_locs
 
         if location_changed:
             txn_type = (
@@ -532,9 +539,10 @@ async def product_edit(
                 else "EXTERNAL"
             )
         else:
+            all_statuses = get_status_options()
             txn_type = (
                 "INTERNAL"
-                if (old_status in STATUS_OPTIONS and new_status in STATUS_OPTIONS)
+                if (old_status in all_statuses and new_status in all_statuses)
                 else "EXTERNAL"
             )
 

@@ -168,10 +168,17 @@ def locations_list(request: Request):
 
 
 @locations_router.post("/new")
-async def location_create(name: str = Form(...), address: str = Form("")):
+async def location_create(
+    name: str = Form(...),
+    address: str = Form(""),
+    is_yard: str = Form(""),
+):
     db = get_db()
     try:
-        db.execute("INSERT INTO Location VALUES (?,?)", (name, address or None))
+        db.execute(
+            "INSERT INTO Location VALUES (?,?,?)",
+            (name, address or None, 1 if is_yard == "1" else 0),
+        )
         db.commit()
     except sqlite3.IntegrityError:
         db.close()
@@ -193,11 +200,16 @@ async def location_delete(name: str):
 
 
 @locations_router.post("/{name}/edit")
-async def location_edit(name: str, new_name: str = Form(...), address: str = Form("")):
+async def location_edit(
+    name: str,
+    new_name: str = Form(...),
+    address: str = Form(""),
+    is_yard: str = Form(""),
+):
     db = get_db()
     db.execute(
-        "UPDATE Location SET name=?, address=? WHERE name=?",
-        (new_name, address or None, name),
+        "UPDATE Location SET name=?, address=?, is_yard=? WHERE name=?",
+        (new_name, address or None, 1 if is_yard == "1" else 0, name),
     )
     db.commit()
     db.close()

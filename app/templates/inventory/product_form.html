@@ -10,14 +10,14 @@
     {% if fixed_parts_number %}
     <input type="hidden" name="parts_number" value="{{ fixed_parts_number }}">
     <div class="form-group">
-      <label for="display_parts">Part Number</label>
+      <label for="display_parts">Catalog Item</label>
       <input type="text" id="display_parts" value="{{ fixed_parts_number }}" disabled>
     </div>
     {% else %}
     <div class="form-group">
-      <label for="parts_number">Part Number *</label>
+      <label for="parts_number">Catalog Item *</label>
       <select id="parts_number" name="parts_number" required>
-        <option value="">— Select Part Number —</option>
+        <option value="">— Select Catalog Item —</option>
         {% for pn in partnumbers %}
         <option value="{{ pn.parts_number }}" {% if (product and product.parts_number == pn.parts_number) or preselected_parts_number == pn.parts_number %}selected{% endif %}>
           {{ pn.parts_number }}

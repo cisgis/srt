@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ partnumber.parts_number }} — SRT{% endblock %}
 {% block page_title %}{{ partnumber.parts_number }}{% endblock %}
-{% block page_sub %}{{ partnumber.description or 'Part Number Detail' }}{% endblock %}
+{% block page_sub %}{{ partnumber.description or 'Catalog Item Detail' }}{% endblock %}
 {% set active = "inventory" %}
 
 {% block topbar_actions %}
@@ -10,14 +10,14 @@
   Add Serialized Product
 </a>
 <a href="/inventory/part-number/{{ partnumber.parts_number }}/edit" class="btn">
-  Edit Part Number
+  Edit Catalog Item
 </a>
 {% endblock %}
 
 {% block content %}
 <div class="detail-grid">
   <div class="detail-section">
-    <h3>Part Number Info</h3>
+    <h3>Catalog Item Info</h3>
     <div class="detail-row">
       <span class="detail-label">Description</span>
       <span>{{ partnumber.description or "—" }}</span>
@@ -53,8 +53,30 @@
   </div>
 </div>
 
-<h3 style="margin-top: 2rem;">Products ({{ products|length }})</h3>
+<h3 style="margin-top: 2rem;">Products (<span id="product-count">{{ products|length }}</span>)</h3>
 {% if products %}
+<div class="search-bar" style="margin-top: 12px;">
+  <select id="filter-status">
+    <option value="">All statuses</option>
+    {% for s in status_options %}
+    <option value="{{ s }}">{{ s }}</option>
+    {% endfor %}
+  </select>
+  <select id="filter-location">
+    <option value="">All locations</option>
+    {% for loc in locations %}
+    <option value="{{ loc.name }}">{{ loc.name }}</option>
+    {% endfor %}
+  </select>
+  <select id="filter-cert">
+    <option value="">All cert statuses</option>
+    <option value="yes">Has certification</option>
+    <option value="no">No certification</option>
+    <option value="expired">Expired</option>
+    <option value="expiring">Expiring soon</option>
+  </select>
+  <button type="button" class="btn btn-sm" onclick="clearFilters()">Clear</button>
+</div>
 <div class="table-wrap">
 <table>
   <thead>
@@ -103,7 +125,7 @@
 </div>
 {% else %}
 <div class="empty-state">
-  No products under this part number yet.
+  No products under this catalog item yet.
   <a href="/inventory/product/new?parts_number={{ partnumber.parts_number }}" style="color:var(--accent)">Add one →</a>
 </div>
 {% endif %}
