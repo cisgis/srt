@@ -2,8 +2,10 @@ from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
+from datetime import datetime
 import json, sqlite3
 from app.database import get_db
+from app.logger import log_info, log_error
 
 # ── Clients ──────────────────────────────────────────────────
 clients_router = APIRouter(prefix="/clients", tags=["clients"])
@@ -22,6 +24,7 @@ def clients_list(request: Request):
 
 @clients_router.post("/new")
 async def client_create(
+    request: Request,
     name: str = Form(...),
     department: str = Form(""),
     company: str = Form(""),
@@ -30,9 +33,12 @@ async def client_create(
     site_address: str = Form(""),
     billing_address: str = Form(""),
 ):
+    now = datetime.now().isoformat()
+    user = request.session.get("username", "unknown")
+
     db = get_db()
     db.execute(
-        "INSERT INTO Clients (name, department, company, phone, email, site_address, billing_address) VALUES (?,?,?,?,?,?,?)",
+        "INSERT INTO Clients (name, department, company, phone, email, site_address, billing_address, created_by, created_at, modified_by, modified_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
         (
             name,
             department or None,
@@ -41,15 +47,21 @@ async def client_create(
             email or None,
             site_address or None,
             billing_address or None,
+            user,
+            now,
+            user,
+            now,
         ),
     )
     db.commit()
+    log_info(f"Created Client: {name} by {user}")
     db.close()
     return RedirectResponse("/clients/", status_code=303)
 
 
 @clients_router.post("/{client_id}/edit")
 async def client_edit(
+    request: Request,
     client_id: int,
     name: str = Form(...),
     department: str = Form(""),
@@ -59,9 +71,12 @@ async def client_edit(
     site_address: str = Form(""),
     billing_address: str = Form(""),
 ):
+    now = datetime.now().isoformat()
+    user = request.session.get("username", "unknown")
+
     db = get_db()
     db.execute(
-        "UPDATE Clients SET name=?, department=?, company=?, phone=?, email=?, site_address=?, billing_address=? WHERE client_id=?",
+        "UPDATE Clients SET name=?, department=?, company=?, phone=?, email=?, site_address=?, billing_address=?, modified_by=?, modified_at=? WHERE client_id=?",
         (
             name,
             department or None,
@@ -70,10 +85,13 @@ async def client_edit(
             email or None,
             site_address or None,
             billing_address or None,
+            user,
+            now,
             client_id,
         ),
     )
     db.commit()
+    log_info(f"Updated Client ID {client_id} by {user}")
     db.close()
     return RedirectResponse("/clients/", status_code=303)
 
@@ -115,22 +133,37 @@ def vendors_list(request: Request):
 
 
 @vendors_router.post("/new")
-async def vendor_create(name: str = Form(...)):
+async def vendor_create(request: Request, name: str = Form(...)):
+    now = datetime.now().isoformat()
+    user = request.session.get("username", "unknown")
+
     db = get_db()
-    db.execute("INSERT INTO Vendor VALUES (?)", (name,))
+    db.execute(
+        "INSERT INTO Vendor VALUES (?, ?, ?, ?, ?)", (name, user, now, user, now)
+    )
     db.commit()
+    log_info(f"Created Vendor: {name} by {user}")
     db.close()
     return RedirectResponse("/vendors/", status_code=303)
 
 
 @vendors_router.post("/{name}/edit")
-async def vendor_edit(name: str, new_name: str = Form(...)):
+async def vendor_edit(request: Request, name: str, new_name: str = Form(...)):
+    now = datetime.now().isoformat()
+    user = request.session.get("username", "unknown")
+
     db = get_db()
-    db.execute("UPDATE Vendor SET name=? WHERE name=?", (new_name, name))
+    db.execute("PRAGMA foreign_keys = OFF")
     db.execute(
-        "UPDATE PartNumber SET vendor_name=? WHERE vendor_name=?", (new_name, name)
+        "UPDATE PartNumber SET vendor_name=? WHERE vendor_name=?",
+        (new_name, name),
+    )
+    db.execute(
+        "UPDATE Vendor SET name=?, modified_by=?, modified_at=? WHERE name=?",
+        (new_name, user, now, name),
     )
     db.commit()
+    log_info(f"Updated Vendor: {name} -> {new_name} by {user}")
     db.close()
     return RedirectResponse("/vendors/", status_code=303)
 
@@ -169,17 +202,22 @@ def locations_list(request: Request):
 
 @locations_router.post("/new")
 async def location_create(
+    request: Request,
     name: str = Form(...),
     address: str = Form(""),
     is_yard: str = Form(""),
 ):
+    now = datetime.now().isoformat()
+    user = request.session.get("username", "unknown")
+
     db = get_db()
     try:
         db.execute(
-            "INSERT INTO Location VALUES (?,?,?)",
-            (name, address or None, 1 if is_yard == "1" else 0),
+            "INSERT INTO Location VALUES (?,?,?,?,?,?)",
+            (name, address or None, 1 if is_yard == "1" else 0, user, now, user, now),
         )
         db.commit()
+        log_info(f"Created Location: {name} by {user}")
     except sqlite3.IntegrityError:
         db.close()
         return JSONResponse(
@@ -191,27 +229,34 @@ async def location_create(
 
 
 @locations_router.post("/{name}/delete")
-async def location_delete(name: str):
+async def location_delete(request: Request, name: str):
+    user = request.session.get("username", "unknown")
     db = get_db()
     db.execute("DELETE FROM Location WHERE name=?", (name,))
     db.commit()
+    log_info(f"Deleted Location: {name} by {user}")
     db.close()
     return RedirectResponse("/locations/", status_code=303)
 
 
 @locations_router.post("/{name}/edit")
 async def location_edit(
+    request: Request,
     name: str,
     new_name: str = Form(...),
     address: str = Form(""),
     is_yard: str = Form(""),
 ):
+    now = datetime.now().isoformat()
+    user = request.session.get("username", "unknown")
+
     db = get_db()
     db.execute(
-        "UPDATE Location SET name=?, address=?, is_yard=? WHERE name=?",
-        (new_name, address or None, 1 if is_yard == "1" else 0, name),
+        "UPDATE Location SET name=?, address=?, is_yard=?, modified_by=?, modified_at=? WHERE name=?",
+        (new_name, address or None, 1 if is_yard == "1" else 0, user, now, name),
     )
     db.commit()
+    log_info(f"Updated Location: {name} by {user}")
     db.close()
     return RedirectResponse("/locations/", status_code=303)
 
@@ -280,11 +325,14 @@ async def txn_ext_create(
     except (json.JSONDecodeError, TypeError):
         parts_list = []
 
+    now = datetime.now().isoformat()
+    user = request.session.get("username", "unknown")
+
     db = get_db()
     cur = db.execute(
         """INSERT INTO Transaction_External
-        (packing_slip_id, outbound_date, inbound_date, signature, delivered_by, discount)
-        VALUES (?,?,?,?,?,?)""",
+        (packing_slip_id, outbound_date, inbound_date, signature, delivered_by, discount, created_by, created_at, modified_by, modified_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?)""",
         (
             packing_slip_id,
             outbound_date or None,
@@ -292,6 +340,10 @@ async def txn_ext_create(
             signature or None,
             delivered_by or None,
             float(discount or 0),
+            user,
+            now,
+            user,
+            now,
         ),
     )
     tid = cur.lastrowid
@@ -300,8 +352,12 @@ async def txn_ext_create(
             "INSERT INTO Transaction_External_Items (transaction_ext_id, serial_number) VALUES (?,?)",
             (tid, sn),
         )
-        db.execute("UPDATE Product SET status='On Loan' WHERE serial_number=?", (sn,))
+        db.execute(
+            "UPDATE Product SET status='On Loan', modified_by=?, modified_at=? WHERE serial_number=?",
+            (user, now, sn),
+        )
     db.commit()
+    log_info(f"Created Transaction_External ID {tid} by {user}")
     db.close()
     return RedirectResponse("/transactions/customer/", status_code=303)
 
@@ -385,11 +441,14 @@ async def txn_int_create(
     except (json.JSONDecodeError, TypeError):
         parts_list = []
 
+    now = datetime.now().isoformat()
+    user = request.session.get("username", "unknown")
+
     db = get_db()
     cur = db.execute(
         """INSERT INTO Transaction_Internal
-        (from_location, to_location, move_date, receive_date, moved_by, reason)
-        VALUES (?,?,?,?,?,?)""",
+        (from_location, to_location, move_date, receive_date, moved_by, reason, created_by, created_at, modified_by, modified_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?)""",
         (
             from_location or None,
             to_location or None,
@@ -397,6 +456,10 @@ async def txn_int_create(
             receive_date or None,
             moved_by or None,
             reason or None,
+            user,
+            now,
+            user,
+            now,
         ),
     )
     tid = cur.lastrowid
@@ -406,8 +469,10 @@ async def txn_int_create(
             (tid, sn),
         )
         db.execute(
-            "UPDATE Product SET location=? WHERE serial_number=?", (to_location, sn)
+            "UPDATE Product SET location=?, modified_by=?, modified_at=? WHERE serial_number=?",
+            (to_location, user, now, sn),
         )
     db.commit()
+    log_info(f"Created Transaction_Internal ID {tid} by {user}")
     db.close()
     return RedirectResponse("/transactions/internal/", status_code=303)

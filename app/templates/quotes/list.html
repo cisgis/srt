@@ -1,13 +1,58 @@
 {% extends "base.html" %}
 {% block title %}Quotes — SRT{% endblock %}
 {% block page_title %}Quotes{% endblock %}
-{% block page_sub %}{% endblock %}
+{% block page_sub %}Manage quotes{% endblock %}
 {% set active = "quotes" %}
 
+{% block topbar_actions %}
+<a href="/quotes/new" class="btn btn-primary">+ New Quote</a>
+{% endblock %}
+
 {% block content %}
-<div class="empty-state">
-  <div style="font-size: 48px; margin-bottom: 16px;">🚧</div>
-  <h2>Under Construction</h2>
-  <p>Quote management is being updated. Check back soon.</p>
+{% if quotes %}
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Quote #</th>
+      <th>Type</th>
+      <th>Date</th>
+      <th>Client</th>
+      <th>Subtotal</th>
+      <th>Discount</th>
+      <th>Shipping</th>
+      <th>Total</th>
+      <th>Status</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for q in quotes %}
+  <tr>
+    <td><a href="/quotes/{{ q.quote_number }}">{{ q.quote_number }}</a></td>
+    <td>{{ "Sale" if q.quote_type == "SALE" else "Rental" }}</td>
+    <td>{{ q.quote_date }}</td>
+    <td>{{ q.client_name or "—" }}</td>
+    <td>${{ "%.2f"|format(q.subtotal_value|float) }}</td>
+    <td>-${{ "%.2f"|format(q.discount_value|float) }}</td>
+    <td>${{ "%.2f"|format(q.shipping_value|float) }}</td>
+    <td>${{ "%.2f"|format(q.total_value|float) }}</td>
+    <td>{{ q.status or "Draft" }}</td>
+    <td style="text-align:right;">
+      <a href="/quotes/{{ q.quote_number }}" class="btn btn-sm">Edit</a>
+      <a href="/quotes/{{ q.quote_number }}/pdf" class="btn btn-sm" target="_blank">PDF</a>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
 </div>
+{% else %}
+<div class="empty-state">
+  <div style="font-size: 48px; margin-bottom: 16px;">📝</div>
+  <h2>No quotes yet</h2>
+  <p>Create your first quote to get started.</p>
+  <a href="/quotes/new" class="btn btn-primary" style="margin-top:12px;">+ New Quote</a>
+</div>
+{% endif %}
 {% endblock %}

@@ -5,6 +5,7 @@ from pathlib import Path
 from datetime import datetime
 from app.database import get_db, next_doc_number
 from app.services import pdf_service, email_service
+from app.logger import log_info, log_error
 
 router = APIRouter(prefix="/packing-slips", tags=["packing_slips"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
@@ -22,6 +23,7 @@ def pl_new(request: Request, from_quote: str = ""):
 
 @router.post("/new")
 async def pl_create(
+    request: Request,
     quote_number: str = Form(""),
     packing_slip_date: str = Form(...),
     po_number: str = Form(""),
@@ -31,11 +33,14 @@ async def pl_create(
     ship_to: str = Form(""),
     client_id: str = Form(""),
 ):
+    now = datetime.now().isoformat()
+    user = request.session.get("username", "unknown")
+
     db = get_db()
     mmddyyyy = datetime.strptime(packing_slip_date, "%Y-%m-%d").strftime("%m%d%Y")
     plnum = next_doc_number(db, "PL", mmddyyyy)
     db.execute(
-        """INSERT INTO Packing_Slip VALUES (?,?,?,?,?,?,?,?,?)""",
+        """INSERT INTO Packing_Slip VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             plnum,
             quote_number or None,
@@ -46,9 +51,14 @@ async def pl_create(
             ship_from or None,
             ship_to or None,
             client_id or None,
+            user,
+            now,
+            user,
+            now,
         ),
     )
     db.commit()
+    log_info(f"Created Packing_Slip: {plnum} by {user}")
     db.close()
     return RedirectResponse(f"/packing-slips/{plnum}", status_code=303)
 

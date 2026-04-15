@@ -5,6 +5,7 @@ from pathlib import Path
 from datetime import datetime
 from app.database import get_db, next_doc_number
 from app.services import pdf_service, email_service
+from app.logger import log_info, log_error
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
@@ -23,17 +24,21 @@ def inv_new(request: Request, from_pl: str = ""):
 
 @router.post("/new")
 async def inv_create(
+    request: Request,
     packing_slip_number: str = Form(...),
     purchase_number: str = Form(""),
     payment_term: str = Form(""),
     invoice_date: str = Form(...),
     client_id: str = Form(""),
 ):
+    now = datetime.now().isoformat()
+    user = request.session.get("username", "unknown")
+
     db = get_db()
     mmddyyyy = datetime.strptime(invoice_date, "%Y-%m-%d").strftime("%m%d%Y")
     invnum = next_doc_number(db, "INV", mmddyyyy)
     db.execute(
-        "INSERT INTO Invoice VALUES (?,?,?,?,?,?)",
+        "INSERT INTO Invoice VALUES (?,?,?,?,?,?,?,?,?,?)",
         (
             invnum,
             packing_slip_number,
@@ -41,9 +46,14 @@ async def inv_create(
             payment_term or None,
             invoice_date,
             client_id or None,
+            user,
+            now,
+            user,
+            now,
         ),
     )
     db.commit()
+    log_info(f"Created Invoice: {invnum} by {user}")
     db.close()
     return RedirectResponse(f"/invoices/{invnum}", status_code=303)
 

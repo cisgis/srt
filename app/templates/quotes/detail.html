@@ -1,17 +1,112 @@
 {% extends "base.html" %}
-{% block title %}Quotes — SRT{% endblock %}
-{% block page_title %}Quotes{% endblock %}
+{% block title %}Quote {{ quote.quote_number }} — SRT{% endblock %}
+{% block page_title %}Quote {{ quote.quote_number }}{% endblock %}
 {% block page_sub %}{% endblock %}
 {% set active = "quotes" %}
 
 {% block topbar_actions %}
-<a href="/quotes/" class="btn">← Back</a>
+<a href="/quotes/" class="btn">← Back to Quotes</a>
+<a href="/quotes/{{ quote.quote_number }}/pdf" class="btn btn-primary" target="_blank">Download PDF</a>
 {% endblock %}
 
 {% block content %}
-<div class="empty-state">
-  <div style="font-size: 48px; margin-bottom: 16px;">🚧</div>
-  <h2>Under Construction</h2>
-  <p>Quote management is being updated. Check back soon.</p>
+<div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+  <div class="form-group">
+    <label>Quote Type</label>
+    <div>{{ "Sale" if quote.quote_type == "SALE" else "Rental" }}</div>
+  </div>
+  <div class="form-group">
+    <label>Quote Date</label>
+    <div>{{ quote.quote_date }}</div>
+  </div>
+  <div class="form-group">
+    <label>Expiration Date</label>
+    <div>{{ quote.quote_expiration_date or "—" }}</div>
+  </div>
+  <div class="form-group">
+    <label>Client</label>
+    <div>{{ client.name or "—" }} {% if client.company %}({{ client.company }}){% endif %}</div>
+  </div>
+  <div class="form-group">
+    <label>Payment Terms</label>
+    <div>{{ quote.payment_term or "—" }}</div>
+  </div>
+  <div class="form-group">
+    <label>Status</label>
+    <div>Draft</div>
+  </div>
+  <div class="form-group">
+    <label>Ship From</label>
+    <div>{{ quote.ship_from or "—" }}</div>
+  </div>
+  <div class="form-group">
+    <label>Ship To</label>
+    <div>{{ quote.ship_to or "—" }}</div>
+  </div>
+  <div class="form-group">
+    <label>Sales Tax Rate</label>
+    <div>{{ "%.2f"|format((quote.sales_tax_rate or 0) * 100) }}%</div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px;margin-bottom:12px;">Line Items</h3>
+{% if items %}
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Catalog Item</th>
+      <th>Yard</th>
+      <th>Qty</th>
+      <th>Unit Price</th>
+      <th>Lead Time</th>
+      <th>Line Total</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for item in items %}
+  <tr>
+    <td>{{ item.parts_number }}</td>
+    <td>{{ item.yard or "—" }}</td>
+    <td>{{ item.quantity }}</td>
+    <td>${{ "%.2f"|format(item.quoted_price) }}</td>
+    <td>{{ item.lead_time or "—" }}</td>
+    <td>${{ "%.2f"|format(item.quantity * item.quoted_price) }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p>No items</p>
+{% endif %}
+
+<div style="background:#222;padding:16px;border-radius:4px;margin-top:16px;max-width:300px;margin-left:auto;">
+  <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+    <span>Subtotal:</span>
+    <span>${{ "%.2f"|format(subtotal) }}</span>
+  </div>
+  {% if quote.rental_days %}
+  <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+    <span>Rental Days:</span>
+    <span>{{ quote.rental_days }}</span>
+  </div>
+  {% endif %}
+  <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+    <span>Tax:</span>
+    <span>${{ "%.2f"|format(tax_amount) }}</span>
+  </div>
+  <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+    <span>Discount:</span>
+    <span>-${{ "%.2f"|format(quote.discount or 0) }}</span>
+  </div>
+  <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+    <span>Shipping:</span>
+    <span>${{ "%.2f"|format(quote.shipping_cost or 0) }}</span>
+  </div>
+  <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:bold;border-top:1px solid #444;padding-top:8px;margin-top:8px;">
+    <span>Total:</span>
+    <span>${{ "%.2f"|format(total) }}</span>
+  </div>
 </div>
 {% endblock %}

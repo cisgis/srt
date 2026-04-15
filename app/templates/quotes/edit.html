@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}New Quote — SRT{% endblock %}
-{% block page_title %}New Quote{% endblock %}
+{% block title %}Edit Quote {{ quote_number }} — SRT{% endblock %}
+{% block page_title %}Edit Quote {{ quote_number }}{% endblock %}
 {% block page_sub %}{% endblock %}
 {% set active = "quotes" %}
 
@@ -9,16 +9,18 @@
 {% endblock %}
 
 {% block content %}
-<form method="post" action="/quotes/new" id="quote-form">
+<form method="post" action="/quotes/{{ quote_number }}/edit" id="quote-form">
+  <input type="hidden" name="quote_number" value="{{ quote_number }}">
+  
   <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;">
     <div class="form-group">
       <label>Quote Type *</label>
       <div style="display:flex;gap:16px;">
         <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
-          <input type="radio" name="quote_type" value="SALE" checked> Sale
+          <input type="radio" name="quote_type" value="SALE" {% if quote.quote_type != 'RENTAL' %}checked{% endif %}> Sale
         </label>
         <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
-          <input type="radio" name="quote_type" value="RENTAL"> Rental
+          <input type="radio" name="quote_type" value="RENTAL" {% if quote.quote_type == 'RENTAL' %}checked{% endif %}> Rental
         </label>
       </div>
     </div>
@@ -28,7 +30,7 @@
       <select id="client_company" name="client_company" required>
         <option value="">— Select Company —</option>
         {% for company, contacts in clients_by_company.items() %}
-        <option value="{{ company }}">{{ company }}</option>
+        <option value="{{ company }}" {% if selected_company == company %}selected{% endif %}>{{ company }}</option>
         {% endfor %}
       </select>
     </div>
@@ -37,17 +39,20 @@
       <label for="contact_person">Contact Person</label>
       <select id="contact_person" name="contact_person">
         <option value="">— Select Contact —</option>
+        {% for c in contacts_for_selected %}
+        <option value="{{ c.name }}" {% if c.name == quote.contact_person %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
       </select>
     </div>
 
     <div class="form-group">
       <label for="quote_date">Quote Date *</label>
-      <input type="date" id="quote_date" name="quote_date" value="{{ today }}" required>
+      <input type="date" id="quote_date" name="quote_date" value="{{ quote.quote_date }}" required>
     </div>
 
     <div class="form-group">
       <label for="quote_expiration_date">Expiration Date</label>
-      <input type="date" id="quote_expiration_date" name="quote_expiration_date" value="{{ default_expiration }}">
+      <input type="date" id="quote_expiration_date" name="quote_expiration_date" value="{{ quote.quote_expiration_date or '' }}">
     </div>
 
     <div class="form-group">
@@ -55,7 +60,7 @@
       <select id="payment_term" name="payment_term">
         <option value="">— Select —</option>
         {% for t in payment_terms %}
-        <option value="{{ t }}">{{ t }}</option>
+        <option value="{{ t }}" {% if quote.payment_term == t %}selected{% endif %}>{{ t }}</option>
         {% endfor %}
       </select>
     </div>
@@ -65,115 +70,104 @@
       <select id="ship_from" name="ship_from">
         <option value="">— Select —</option>
         {% for loc in locations %}
-        <option value="{{ loc.name }}">{{ loc.name }}</option>
+        <option value="{{ loc.name }}" {% if quote.ship_from == loc.name %}selected{% endif %}>{{ loc.name }}</option>
         {% endfor %}
       </select>
     </div>
 
     <div class="form-group">
       <label for="ship_to">Ship To</label>
-      <input type="text" id="ship_to" name="ship_to">
+      <input type="text" id="ship_to" name="ship_to" value="{{ quote.ship_to or '' }}">
     </div>
 
     <div class="form-group">
       <label for="sales_tax_rate">Sales Tax (%)</label>
-      <input type="number" id="sales_tax_rate" name="sales_tax_rate" value="8.25" step="0.01" min="0">
+      <input type="number" id="sales_tax_rate" name="sales_tax_rate" value="{{ (quote.sales_tax_rate or 0) * 100 }}" step="0.01" min="0">
     </div>
   </div>
 
   <h3 style="margin-top:24px;margin-bottom:12px;">Line Items</h3>
-  <div id="line-items"></div>
+  <div id="line-items">
+    {% for item in items %}
+    <div class="line-item-row" style="background:#222;border-radius:4px;padding:12px;margin-bottom:12px;">
+      <div style="display:grid;grid-template-columns:2fr 80px 1fr;gap:8px;align-items:end;margin-bottom:12px;">
+        <div>
+          <label>Catalog Item *</label>
+          <select class="parts-select" name="parts_number">
+            <option value="">— Select —</option>
+            {% for p in partnumbers %}
+            <option value="{{ p.parts_number }}" {% if p.parts_number == item.parts_number %}selected{% endif %} data-resale="{{ p.resale_price or 0 }}" data-rental="{{ p.rental_price or 0 }}">{{ p.parts_number }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)">×</button>
+      </div>
+      <div class="yard-rows">
+        <div class="yard-row" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:8px;padding:8px;background:#2a2a2a;border-radius:4px;">
+          <div><label>Yard</label><div class="yard-name" style="padding:8px;font-size:13px;">{{ item.yard or 'N/A' }}</div></div>
+          <div><label>Available</label><div class="yard-avail" style="padding:8px;font-size:13px;">—</div></div>
+          <div><label>Qty</label><input type="number" class="yard-qty" name="quantity" min="0" value="{{ item.quantity }}" style="width:100%;padding:8px;" data-unit-price="{{ item.quoted_price }}"></div>
+          <div><label>Lead Time</label><input type="text" class="yard-lead" name="lead_time" value="{{ item.lead_time or '' }}" style="width:100%;padding:8px;"></div>
+        </div>
+      </div>
+      <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+        <label style="font-size:13px;">Line Total:</label>
+        <span class="line-total" style="font-weight:bold;">${{ "%.2f"|format(item.quantity * item.quoted_price) }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
   <button type="button" class="btn btn-sm" onclick="addLineItem()" style="margin-bottom:16px;">+ Add Item</button>
 
   <h3 style="margin-top:24px;margin-bottom:12px;">Totals</h3>
   <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;">
-    <div class="form-group" id="rental-days-group" style="display:none;">
+    <div class="form-group" id="rental-days-group" style="display:{% if quote.quote_type == 'RENTAL' %}block{% else %}none{% endif %};">
       <label for="rental_days">Rental Days</label>
-      <input type="number" id="rental_days" name="rental_days" value="1" min="1">
+      <input type="number" id="rental_days" name="rental_days" value="{{ quote.rental_days or 1 }}" min="1">
     </div>
 
     <div class="form-group">
       <label for="discount">Discount ($)</label>
-      <input type="number" id="discount" name="discount" value="0" step="0.01" min="0">
+      <input type="number" id="discount" name="discount" value="{{ quote.discount or 0 }}" step="0.01" min="0">
     </div>
 
     <div class="form-group">
       <label for="shipping_cost">Shipping Cost ($)</label>
-      <input type="number" id="shipping_cost" name="shipping_cost" value="0" step="0.01" min="0">
+      <input type="number" id="shipping_cost" name="shipping_cost" value="{{ quote.shipping_cost or 0 }}" step="0.01" min="0">
     </div>
   </div>
 
   <div style="background:#222;padding:16px;border-radius:4px;margin-top:16px;">
     <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
       <span>Subtotal:</span>
-      <span id="subtotal">$0.00</span>
+      <span id="subtotal">${{ "%.2f"|format(subtotal) }}</span>
     </div>
     <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
       <span>Tax:</span>
-      <span id="tax-amount">$0.00</span>
+      <span id="tax-amount">${{ "%.2f"|format(tax_amount) }}</span>
     </div>
     <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
       <span>Discount:</span>
-      <span id="discount-display">-$0.00</span>
+      <span id="discount-display">-${{ "%.2f"|format(quote.discount or 0) }}</span>
     </div>
     <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
       <span>Shipping:</span>
-      <span id="shipping-display">$0.00</span>
+      <span id="shipping-display">${{ "%.2f"|format(quote.shipping_cost or 0) }}</span>
     </div>
     <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:bold;border-top:1px solid #444;padding-top:8px;margin-top:8px;">
       <span>Total:</span>
-      <span id="grand-total">$0.00</span>
+      <span id="grand-total">${{ "%.2f"|format(total) }}</span>
     </div>
   </div>
 
-  <input type="hidden" name="client_id" id="client_id_input">
+  <input type="hidden" name="client_id" id="client_id_input" value="{{ quote.client_id or '' }}">
   <input type="hidden" name="items_json" id="items_json">
 
   <div class="form-actions" style="margin-top:24px;">
     <a href="/quotes/" class="btn">Cancel</a>
-    <button type="submit" class="btn btn-primary">Create Quote</button>
+    <button type="submit" class="btn btn-primary">Save Changes</button>
   </div>
 </form>
-
-<template id="line-item-template">
-  <div class="line-item-row" style="background:#222;border-radius:4px;padding:12px;margin-bottom:12px;">
-    <div style="display:grid;grid-template-columns:2fr 80px 1fr;gap:8px;align-items:end;margin-bottom:12px;">
-      <div>
-        <label>Catalog Item *</label>
-        <select class="parts-select" name="parts_number">
-          <option value="">— Select —</option>
-        </select>
-      </div>
-      <button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)">×</button>
-    </div>
-    <div class="yard-rows"></div>
-    <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
-      <label style="font-size:13px;">Line Total:</label>
-      <span class="line-total" style="font-weight:bold;">$0.00</span>
-    </div>
-  </div>
-</template>
-
-<template id="yard-row-template">
-  <div class="yard-row" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:8px;padding:8px;background:#2a2a2a;border-radius:4px;">
-    <div>
-      <label>Yard</label>
-      <div class="yard-name" style="padding:8px;font-size:13px;"></div>
-    </div>
-    <div>
-      <label>Available</label>
-      <div class="yard-avail" style="padding:8px;font-size:13px;"></div>
-    </div>
-    <div>
-      <label>Qty</label>
-      <input type="number" class="yard-qty" name="quantity" min="0" value="0" style="width:100%;padding:8px;">
-    </div>
-    <div>
-      <label>Lead Time</label>
-      <input type="text" class="yard-lead" name="lead_time" placeholder="e.g. 2 weeks" style="width:100%;padding:8px;">
-    </div>
-  </div>
-</template>
 {% endblock %}
 
 {% block scripts %}
@@ -221,15 +215,17 @@ document.querySelectorAll('input[name="quote_type"]').forEach(radio => {
 
 function addLineItem() {
   const container = document.getElementById('line-items');
-  const template = document.getElementById('line-item-template');
-  const row = template.content.cloneNode(true);
-  container.appendChild(row);
-  attachRowListeners(container.lastElementChild);
+  const template = document.querySelector('.line-item-row').cloneNode(true);
+  template.querySelector('.parts-select').value = '';
+  template.querySelectorAll('.yard-qty').forEach(q => q.value = 0);
+  template.querySelector('.yard-rows').innerHTML = '';
+  container.appendChild(template);
+  attachRowListeners(template);
 }
 
 function removeRow(btn) {
   const rows = document.querySelectorAll('.line-item-row');
-  if (rows.length > 0) {
+  if (rows.length > 1) {
     btn.closest('.line-item-row').remove();
     calculateTotal();
   }
@@ -237,10 +233,15 @@ function removeRow(btn) {
 
 function attachRowListeners(row) {
   const select = row.querySelector('.parts-select');
-  const partsOptions = partnumbers.map(p => 
-    `<option value="${p.parts_number}" data-resale="${p.resale_price || 0}" data-rental="${p.rental_price || 0}">${p.parts_number} - ${p.description || ''}</option>`
-  ).join('');
-  select.innerHTML = '<option value="">— Select —</option>' + partsOptions;
+  const selectedValue = select.value;
+  
+  select.querySelectorAll('option').forEach(opt => {
+    const pn = partnumbers.find(p => p.parts_number === opt.value);
+    if (pn) {
+      opt.dataset.resale = pn.resale_price || 0;
+      opt.dataset.rental = pn.rental_price || 0;
+    }
+  });
   
   select.addEventListener('change', function() {
     updateYardRows(row, this.value);
@@ -254,7 +255,6 @@ function attachRowListeners(row) {
 
 function updateYardRows(row, partsNumber) {
   const yardRowsContainer = row.querySelector('.yard-rows');
-  const yardTemplate = document.getElementById('yard-row-template');
   yardRowsContainer.innerHTML = '';
   
   if (!partsNumber) return;
@@ -266,23 +266,24 @@ function updateYardRows(row, partsNumber) {
     const availKey = yard.toLowerCase().replace(' ', '_');
     const avail = pn[availKey] || 0;
     if (avail > 0) {
-      const yardRow = yardTemplate.content.cloneNode(true);
-      yardRow.querySelector('.yard-name').textContent = yard;
-      yardRow.querySelector('.yard-avail').textContent = avail;
-      const qtyInput = yardRow.querySelector('.yard-qty');
-      qtyInput.dataset.partsNumber = partsNumber;
+      const div = document.createElement('div');
+      div.className = 'yard-row';
+      div.style = 'display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:8px;padding:8px;background:#2a2a2a;border-radius:4px;';
+      div.innerHTML = `
+        <div><label>Yard</label><div class="yard-name" style="padding:8px;font-size:13px;">${yard}</div></div>
+        <div><label>Available</label><div class="yard-avail" style="padding:8px;font-size:13px;">${avail}</div></div>
+        <div><label>Qty</label><input type="number" class="yard-qty" name="quantity" min="0" value="0" style="width:100%;padding:8px;" max="${avail}"></div>
+        <div><label>Lead Time</label><input type="text" class="yard-lead" name="lead_time" style="width:100%;padding:8px;"></div>
+      `;
+      const qtyInput = div.querySelector('.yard-qty');
       qtyInput.dataset.unitPrice = pn.resale_price || 0;
       qtyInput.dataset.rentalPrice = pn.rental_price || 0;
-      qtyInput.dataset.yard = yard;
       qtyInput.dataset.maxAvail = avail;
-      qtyInput.max = avail;
       qtyInput.addEventListener('input', function() {
-        if (parseInt(this.value) > parseInt(this.max)) {
-          this.value = this.max;
-        }
+        if (parseInt(this.value) > parseInt(this.max)) this.value = this.max;
         calculateTotal();
       });
-      yardRowsContainer.appendChild(yardRow);
+      yardRowsContainer.appendChild(div);
     }
   });
 }
@@ -290,8 +291,9 @@ function updateYardRows(row, partsNumber) {
 function updatePrices() {
   const rental = document.querySelector('input[name="quote_type"]:checked').value === 'RENTAL';
   document.querySelectorAll('.yard-qty').forEach(qty => {
-    const price = rental ? (qty.dataset.rentalPrice || 0) : (qty.dataset.unitPrice || 0);
-    qty.dataset.unitPrice = price;
+    const resalePrice = parseFloat(qty.dataset.resalePrice || qty.dataset.unitPrice || 0);
+    const rentalPrice = parseFloat(qty.dataset.rentalPrice || 0);
+    qty.dataset.unitPrice = rental ? rentalPrice : resalePrice;
   });
   calculateTotal();
 }
@@ -308,14 +310,16 @@ function calculateTotal() {
     const partsNumber = row.querySelector('.parts-select').value;
     if (!partsNumber) return;
     
+    const select = row.querySelector('.parts-select');
+    const selectedOption = select.options[select.selectedIndex];
+    const resalePrice = parseFloat(selectedOption.dataset.resale) || 0;
+    const rentalPrice = parseFloat(selectedOption.dataset.rental) || 0;
+    const unitPrice = rental ? rentalPrice : resalePrice;
+    
     let lineTotal = 0;
     row.querySelectorAll('.yard-row').forEach(yardRow => {
       const qty = parseInt(yardRow.querySelector('.yard-qty').value) || 0;
-      const price = parseFloat(yardRow.querySelector('.yard-qty').dataset.unitPrice) || 0;
-      let itemTotal = qty * price;
-      if (rental && rentalDays > 0) {
-        itemTotal = itemTotal * rentalDays;
-      }
+      const itemTotal = qty * unitPrice * (rental ? rentalDays : 1);
       lineTotal += itemTotal;
     });
     row.querySelector('.line-total').textContent = '$' + lineTotal.toFixed(2);
@@ -338,11 +342,9 @@ function calculateTotal() {
 
 document.getElementById('quote-form').addEventListener('submit', function(e) {
   const items = [];
-  
   document.querySelectorAll('.line-item-row').forEach(row => {
     const partsNumber = row.querySelector('.parts-select').value;
     if (!partsNumber) return;
-    
     row.querySelectorAll('.yard-row').forEach(yardRow => {
       const qty = parseInt(yardRow.querySelector('.yard-qty').value) || 0;
       const price = parseFloat(yardRow.querySelector('.yard-qty').dataset.unitPrice) || 0;
@@ -352,22 +354,20 @@ document.getElementById('quote-form').addEventListener('submit', function(e) {
           parts_number: partsNumber, 
           quantity: qty, 
           quoted_price: price,
-          yard: yardRow.querySelector('.yard-qty').dataset.yard,
+          yard: yardRow.querySelector('.yard-name').textContent,
           lead_time: leadTime
         });
       }
     });
   });
-  
   document.getElementById('items_json').value = JSON.stringify(items);
-  
   if (items.length === 0) {
     e.preventDefault();
     alert('Please add at least one item');
   }
 });
 
-addLineItem();
+document.querySelectorAll('.line-item-row').forEach(attachRowListeners);
 calculateTotal();
 </script>
 {% endblock %}

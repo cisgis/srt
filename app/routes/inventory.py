@@ -2,10 +2,11 @@ from fastapi import APIRouter, Request, Form, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
-from datetime import date
+from datetime import date, datetime
 import shutil
 import config
 from app.database import get_db
+from app.logger import log_info, log_error
 
 router = APIRouter(prefix="/inventory", tags=["inventory"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
@@ -126,6 +127,7 @@ def partnumber_new(request: Request):
 
 @router.post("/part-number/new")
 async def partnumber_create(
+    request: Request,
     parts_number: str = Form(...),
     description: str = Form(""),
     cost_price: str = Form(""),
@@ -138,10 +140,15 @@ async def partnumber_create(
     def _f(v):
         return float(v) if v else None
 
+    from datetime import datetime
+
+    now = datetime.now().isoformat()
+    user = request.session.get("username", "unknown")
+
     db = get_db()
     try:
         db.execute(
-            """INSERT INTO PartNumber VALUES (?,?,?,?,?,?,?,?)""",
+            """INSERT INTO PartNumber VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 parts_number,
                 description,
@@ -151,11 +158,17 @@ async def partnumber_create(
                 _f(weight),
                 dimensions or None,
                 vendor_name or None,
+                user,
+                now,
+                user,
+                now,
             ),
         )
         db.commit()
+        log_info(f"Created PartNumber: {parts_number} by {user}")
     except Exception as e:
         db.close()
+        log_error(f"Failed to create PartNumber {parts_number}: {e}")
         return HTMLResponse(f"Error: {e}", status_code=400)
     db.close()
     return RedirectResponse("/inventory/", status_code=303)
@@ -225,6 +238,7 @@ def partnumber_edit_page(request: Request, parts_number: str):
 
 @router.post("/part-number/{parts_number}/edit")
 async def partnumber_edit(
+    request: Request,
     parts_number: str,
     description: str = Form(""),
     cost_price: str = Form(""),
@@ -237,11 +251,14 @@ async def partnumber_edit(
     def _f(v):
         return float(v) if v else None
 
+    now = datetime.now().isoformat()
+    user = request.session.get("username", "unknown")
+
     db = get_db()
     db.execute(
         """UPDATE PartNumber SET
         description=?, cost_price=?, resale_price=?, rental_price=?,
-        weight=?, dimensions=?, vendor_name=?
+        weight=?, dimensions=?, vendor_name=?, modified_by=?, modified_at=?
         WHERE parts_number=?""",
         (
             description,
@@ -251,10 +268,13 @@ async def partnumber_edit(
             _f(weight),
             dimensions or None,
             vendor_name or None,
+            user,
+            now,
             parts_number,
         ),
     )
     db.commit()
+    log_info(f"Updated PartNumber: {parts_number} by {user}")
     db.close()
     return RedirectResponse(f"/inventory/part-number/{parts_number}", status_code=303)
 
@@ -314,6 +334,9 @@ async def product_create(
     mtr_fn = save_file(mtr_file, "mtr")
     drawing_fn = save_file(drawing_file, "drw")
 
+    now = datetime.now().isoformat()
+    user = request.session.get("username", "unknown")
+
     db = get_db()
 
     existing = db.execute(
@@ -334,7 +357,7 @@ async def product_create(
 
     try:
         db.execute(
-            """INSERT INTO Product VALUES (?,?,?,?,?,?,?,?)""",
+            "INSERT INTO Product VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 serial_number,
                 parts_number,
@@ -344,11 +367,17 @@ async def product_create(
                 certification_expiration_date or None,
                 mtr_fn,
                 drawing_fn,
+                user,
+                now,
+                user,
+                now,
             ),
         )
         db.commit()
+        log_info(f"Created Product: {serial_number} by {user}")
     except Exception as e:
         db.close()
+        log_error(f"Failed to create Product {serial_number}: {e}")
         return HTMLResponse(f"Error: {e}", status_code=400)
     db.close()
     return RedirectResponse(f"/inventory/part-number/{parts_number}", status_code=303)
@@ -458,6 +487,7 @@ def product_detail(request: Request, serial_number: str):
 
 @router.post("/product/{serial_number}/edit")
 async def product_edit(
+    request: Request,
     serial_number: str,
     status: str = Form(""),
     location: str = Form(""),
@@ -475,6 +505,9 @@ async def product_edit(
         with open(dest, "wb") as f:
             shutil.copyfileobj(upload_file.file, f)
         return fn
+
+    now = datetime.now().isoformat()
+    user = request.session.get("username", "unknown")
 
     db = get_db()
 
@@ -564,9 +597,9 @@ async def product_edit(
         if txn_type == "INTERNAL" and location_changed:
             db.execute(
                 """INSERT INTO Transaction_Internal 
-                    (from_location, to_location, move_date)
-                    VALUES (?,?,?)""",
-                (old_location, new_location, today),
+                    (from_location, to_location, move_date, created_by, created_at)
+                    VALUES (?,?,?,?,?)""",
+                (old_location, new_location, today, user, now),
             )
             txn_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
             db.execute(
@@ -579,7 +612,8 @@ async def product_edit(
     db.execute(
         """UPDATE Product SET
         status=?, location=?, receiving_date=?,
-        certification_expiration_date=?, mtr_filename=?, drawing_filename=?
+        certification_expiration_date=?, mtr_filename=?, drawing_filename=?,
+        modified_by=?, modified_at=?
         WHERE serial_number=?""",
         (
             new_status,
@@ -588,12 +622,13 @@ async def product_edit(
             upd_cert_date,
             new_mtr_fn,
             new_drawing_fn,
+            user,
+            now,
             serial_number,
         ),
     )
 
     db.commit()
-    db.close()
-    return RedirectResponse(f"/inventory/product/{serial_number}", status_code=303)
+    log_info(f"Updated Product: {serial_number} by {user}")
     db.close()
     return RedirectResponse(f"/inventory/product/{serial_number}", status_code=303)

@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
 from pathlib import Path
 
 from app.database import init_db
@@ -18,6 +19,8 @@ from app.routes.other import (
     txn_int_router,
 )
 from app.routes.pdf_api import router as pdf_api_router
+from app.logger import log_info, log_error, log_warning
+from app.database import get_db
 
 
 @asynccontextmanager
@@ -27,6 +30,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Steel River Technologies — Inventory", lifespan=lifespan)
+
+app.add_middleware(SessionMiddleware, secret_key="srt-dev-key")
 
 app.mount(
     "/static",
@@ -54,8 +59,50 @@ app.include_router(txn_int_router)
 app.include_router(pdf_api_router)
 
 
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request, error: str = ""):
+    return templates.TemplateResponse(
+        "login.html",
+        {"request": request, "error": error},
+    )
+
+
+@app.post("/login")
+def login_submit(
+    request: Request, username: str = Form(...), password: str = Form(...)
+):
+    db = get_db()
+    user = db.execute(
+        "SELECT * FROM Users WHERE username=? AND password=? AND is_active=1",
+        (username, password),
+    ).fetchone()
+    db.close()
+
+    if user:
+        request.session["authenticated"] = True
+        request.session["username"] = username
+        log_info(f"User logged in: {username}")
+        return RedirectResponse("/", status_code=303)
+    log_warning(f"Failed login attempt: {username}")
+    return templates.TemplateResponse(
+        "login.html",
+        {"request": request, "error": "Invalid credentials"},
+    )
+
+
+@app.get("/logout")
+def logout(request: Request):
+    user = request.session.get("username", "unknown")
+    request.session.clear()
+    log_info(f"User logged out: {user}")
+    return RedirectResponse("/login", status_code=303)
+
+
 @app.get("/", response_class=HTMLResponse)
 def root(request: Request):
+    if not request.session.get("authenticated"):
+        return RedirectResponse("/login", status_code=303)
+
     from app.database import get_db
 
     db = get_db()
@@ -86,4 +133,4 @@ def root(request: Request):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

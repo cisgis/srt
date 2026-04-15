@@ -1,5 +1,6 @@
 import sqlite3
 from pathlib import Path
+from datetime import datetime
 from config import DB_PATH
 
 
@@ -8,6 +9,14 @@ def get_db():
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
+
+
+def get_current_user(request):
+    return request.session.get("username", "unknown") if request else "system"
+
+
+def timestamp():
+    return datetime.now().isoformat()
 
 
 def init_db():
@@ -35,6 +44,20 @@ def init_db():
         for name, order in statuses:
             conn.execute(
                 "INSERT INTO Status (name, display_order) VALUES (?,?)", (name, order)
+            )
+        conn.commit()
+
+    if conn.execute("SELECT COUNT(*) FROM Users").fetchone()[0] == 0:
+        now = timestamp()
+        users = [
+            ("admin", "srt123", "Administrator", now),
+            ("john", "john123", "John Smith", now),
+            ("jane", "jane123", "Jane Doe", now),
+        ]
+        for username, password, display_name, created_at in users:
+            conn.execute(
+                "INSERT INTO Users (username, password, display_name, created_by, created_at, modified_by, modified_at) VALUES (?,?,?,?,?,?,?)",
+                (username, password, display_name, "system", now, "system", now),
             )
         conn.commit()
 
@@ -73,8 +96,152 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS doc_sequences (
     doc_number TEXT PRIMARY KEY
 );
+CREATE TABLE IF NOT EXISTS Users (
+    user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    display_name TEXT,
+    is_active INTEGER DEFAULT 1,
+    created_by TEXT,
+    created_at TEXT,
+    modified_by TEXT,
+    modified_at TEXT
+);
 CREATE TABLE IF NOT EXISTS Vendor (
-    name TEXT PRIMARY KEY
+    name TEXT PRIMARY KEY,
+    created_by TEXT,
+    created_at TEXT,
+    modified_by TEXT,
+    modified_at TEXT
+);
+CREATE TABLE IF NOT EXISTS PartNumber (
+    parts_number    TEXT PRIMARY KEY,
+    description     TEXT,
+    cost_price      REAL,
+    resale_price    REAL,
+    rental_price    REAL,
+    weight          REAL,
+    dimensions      TEXT,
+    vendor_name     TEXT REFERENCES Vendor(name),
+    created_by TEXT,
+    created_at TEXT,
+    modified_by TEXT,
+    modified_at TEXT
+);
+CREATE TABLE IF NOT EXISTS Product (
+    serial_number                   TEXT PRIMARY KEY,
+    parts_number                    TEXT NOT NULL REFERENCES PartNumber(parts_number),
+    status                          TEXT CHECK(status IN (
+                                         'Available','Pending Certification','On Loan',
+                                         'Sold','Damaged','In Repair',
+                                         'Retired / Decommissioned','Lost')),
+    location                        TEXT,
+    receiving_date                  TEXT,
+    certification_expiration_date   TEXT,
+    mtr_filename                    TEXT,
+    drawing_filename                TEXT,
+    created_by TEXT,
+    created_at TEXT,
+    modified_by TEXT,
+    modified_at TEXT
+);
+CREATE TABLE IF NOT EXISTS Clients (
+    client_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL,
+    department      TEXT,
+    company         TEXT,
+    phone           TEXT,
+    email           TEXT,
+    site_address    TEXT,
+    billing_address TEXT,
+    created_by TEXT,
+    created_at TEXT,
+    modified_by TEXT,
+    modified_at TEXT
+);
+CREATE TABLE IF NOT EXISTS Warehouse (
+    warehouse_id TEXT PRIMARY KEY,
+    ship_from    TEXT NOT NULL,
+    created_by TEXT,
+    created_at TEXT,
+    modified_by TEXT,
+    modified_at TEXT
+);
+CREATE TABLE IF NOT EXISTS Location (
+    name TEXT PRIMARY KEY,
+    address TEXT,
+    is_yard INTEGER DEFAULT 0,
+    created_by TEXT,
+    created_at TEXT,
+    modified_by TEXT,
+    modified_at TEXT
+);
+CREATE TABLE IF NOT EXISTS Quote (
+    quote_number          TEXT PRIMARY KEY,
+    quote_date            TEXT NOT NULL,
+    quote_expiration_date TEXT,
+    payment_term          TEXT,
+    ship_to               TEXT,
+    ship_from             TEXT,
+    sales_tax_rate        REAL DEFAULT 0,
+    client_id             TEXT REFERENCES Clients(client_id),
+    created_by TEXT,
+    created_at TEXT,
+    modified_by TEXT,
+    modified_at TEXT
+);
+CREATE TABLE IF NOT EXISTS Packing_Slip (
+    packing_slip_number  TEXT PRIMARY KEY,
+    quote_number         TEXT REFERENCES Quote(quote_number),
+    packing_slip_date    TEXT,
+    po_number            TEXT,
+    ship_via             TEXT,
+    delivered_by         TEXT,
+    ship_from            TEXT,
+    ship_to              TEXT,
+    client_id            TEXT REFERENCES Clients(client_id),
+    created_by TEXT,
+    created_at TEXT,
+    modified_by TEXT,
+    modified_at TEXT
+);
+CREATE TABLE IF NOT EXISTS Invoice (
+    invoice_number      TEXT PRIMARY KEY,
+    packing_slip_number TEXT REFERENCES Packing_Slip(packing_slip_number),
+    purchase_number     TEXT,
+    payment_term        TEXT,
+    invoice_date        TEXT,
+    client_id           TEXT REFERENCES Clients(client_id),
+    created_by TEXT,
+    created_at TEXT,
+    modified_by TEXT,
+    modified_at TEXT
+);
+CREATE TABLE IF NOT EXISTS Transaction_External (
+    transaction_ext_id  INTEGER PRIMARY KEY AUTOINCREMENT,
+    packing_slip_id     TEXT REFERENCES Packing_Slip(packing_slip_number),
+    outbound_date       TEXT,
+    inbound_date        TEXT,
+    signature           TEXT,
+    delivered_by        TEXT,
+    discount            REAL DEFAULT 0,
+    created_by TEXT,
+    created_at TEXT,
+    modified_by TEXT,
+    modified_at TEXT
+);
+CREATE TABLE IF NOT EXISTS Transaction_Internal (
+    transaction_int_id  INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_location       TEXT,
+    to_location         TEXT,
+    move_date           TEXT,
+    receive_date        TEXT,
+    moved_by            TEXT,
+    reason              TEXT,
+    created_by TEXT,
+    created_at TEXT,
+    modified_by TEXT,
+    modified_at TEXT
 );
 CREATE TABLE IF NOT EXISTS PartNumber (
     parts_number    TEXT PRIMARY KEY,
@@ -124,13 +291,22 @@ CREATE TABLE IF NOT EXISTS Status (
 );
 CREATE TABLE IF NOT EXISTS Quote (
     quote_number          TEXT PRIMARY KEY,
+    quote_type            TEXT CHECK(quote_type IN ('SALE','RENTAL')),
     quote_date            TEXT NOT NULL,
     quote_expiration_date TEXT,
     payment_term          TEXT,
     ship_to               TEXT,
     ship_from             TEXT,
     sales_tax_rate        REAL DEFAULT 0,
-    client_id             TEXT REFERENCES Clients(client_id)
+    rental_days           INTEGER,
+    discount              REAL DEFAULT 0,
+    shipping_cost         REAL DEFAULT 0,
+    client_id             TEXT,
+    contact_person        TEXT,
+    created_by TEXT,
+    created_at TEXT,
+    modified_by TEXT,
+    modified_at TEXT
 );
 CREATE TABLE IF NOT EXISTS Quote_Items (
     item_id       INTEGER PRIMARY KEY AUTOINCREMENT,
