@@ -109,8 +109,20 @@ def build_quote_pdf(quote: dict, client: dict, items: list) -> bytes:
             )  # Letter size in points
 
             # Load content and wait for everything
+            import urllib.parse
+
+            # Normalize file URLs first
+            normalized_html = html_content.replace("file://", "file:///")
+
+            # Properly URL-encode the HTML
+            encoded_html = urllib.parse.quote(normalized_html)
+
+            # Build the data URL
+            data_url = f"data:text/html,{encoded_html}"
+
+            # Navigate
             await page.goto(
-                f'data:text/html,{html_content.replace("file://", "file:///").replace("\'", "%27")}',
+                data_url,
                 wait_until="domcontentloaded",
             )
             await page.wait_for_timeout(2000)
