@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Quote PDF Sample</title>
+  <style>
+    @page {
+      size: letter;
+      margin: 0.5in 0.75in;
+    }
+    body {
+      font-family: Helvetica, Arial, sans-serif;
+      font-size: 13px;
+      color: #333;
+      margin: 0;
+      padding: 20px 40px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 25px;
+      border-bottom: 3px solid #1a5f7a;
+      padding-bottom: 15px;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .logo img {
+      width: 150px;
+      height: 150px;
+      object-fit: contain;
+    }
+    .logo-text {
+      font-size: 22px;
+      font-weight: bold;
+      color: #1a5f7a;
+      letter-spacing: 1px;
+    }
+    .company-info {
+      text-align: right;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #555;
+      padding-top: 20px;
+    }
+    .doc-info {
+      margin-bottom: 20px;
+    }
+    .quote-type {
+      font-size: 32px;
+      font-weight: bold;
+      color: #1a5f7a;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin: 0 0 15px 0;
+    }
+    .quote-type.rental {
+      color: #f39c12;
+    }
+    .quote-number {
+      font-size: 18px;
+      color: #333;
+      margin-bottom: 5px;
+    }
+    .quote-dates {
+      font-size: 12px;
+      color: #666;
+    }
+    .info-grid {
+      display: table;
+      width: 100%;
+      margin-bottom: 25px;
+    }
+    .info-row {
+      display: table-row;
+    }
+    .info-section {
+      display: table-cell;
+      width: 50%;
+      vertical-align: top;
+      padding: 15px;
+      background: #f8f8f8;
+      border-radius: 5px;
+    }
+    .info-label {
+      font-weight: bold;
+      color: #1a5f7a;
+      font-size: 12px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .info-value {
+      line-height: 1.6;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    th {
+      background: #1a5f7a;
+      color: white;
+      text-align: left;
+      padding: 12px 10px;
+      font-weight: bold;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+    td {
+      padding: 12px 10px;
+      border-bottom: 1px solid #ddd;
+      font-size: 13px;
+    }
+    tr:nth-child(even) {
+      background: #fafafa;
+    }
+    .text-right {
+      text-align: right;
+    }
+    .text-center {
+      text-align: center;
+    }
+    .totals {
+      margin-top: 20px;
+      width: 320px;
+      margin-left: auto;
+      background: #f8f8f8;
+      padding: 20px;
+      border-radius: 5px;
+    }
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+      font-size: 13px;
+    }
+    .totals-row.total {
+      font-size: 18px;
+      font-weight: bold;
+      color: #1a5f7a;
+      border-top: 2px solid #1a5f7a;
+      margin-top: 10px;
+      padding-top: 10px;
+    }
+    .terms {
+      margin-top: 25px;
+      display: table;
+      width: 100%;
+    }
+    .terms-cell {
+      display: table-cell;
+      width: 33%;
+      padding: 10px;
+      vertical-align: top;
+    }
+    .terms-label {
+      font-weight: bold;
+      color: #1a5f7a;
+      font-size: 11px;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+    .terms-value {
+      font-size: 12px;
+      color: #666;
+    }
+    .footer {
+      margin-top: 40px;
+      text-align: center;
+      font-size: 10px;
+      color: #888;
+      border-top: 1px solid #ddd;
+      padding-top: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">
+      <img src="file://D:/Documents/Career/APT/srt/examples/logo.webp" alt="SRT Logo">
+      <div class="logo-text">STEEL RIVER TECHNOLOGIES</div>
+    </div>
+    <div class="company-info">
+      <strong>Steel River Technologies</strong><br>
+      1234 Industrial Blvd<br>
+      Houston, TX 77001<br>
+      Phone: (555) 123-4567<br>
+      Email: info@steeleriver.com
+    </div>
+  </div>
+
+  <div class="doc-info">
+    <h1 class="quote-type">SALE QUOTE</h1>
+    <div class="quote-number"><strong>Quote #:</strong> Q04142026-001</div>
+    <div class="quote-dates">
+      <strong>Date:</strong> 04/14/2026 &nbsp;|&nbsp; <strong>Valid Until:</strong> 04/28/2026
+    </div>
+  </div>
+
+  <div class="info-grid">
+    <div class="info-row">
+      <div class="info-section">
+        <div class="info-label">Quote To:</div>
+        <div class="info-value">
+          <strong>John Smith</strong><br>
+          Shell<br>
+          100 Exxon St<br>
+          Houston, TX 77002
+        </div>
+      </div>
+      <div class="info-section">
+        <div class="info-label">Ship To:</div>
+        <div class="info-value">
+          100 Exxon St<br>
+          Houston, TX 77002
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-bottom: 15px; font-size: 13px;">
+    <strong>Payment Terms:</strong> COD &nbsp;|&nbsp; <strong>Sales Tax:</strong> 8.25%
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Description</th>
+        <th class="text-center">Qty</th>
+        <th class="text-right">Unit Price</th>
+        <th class="text-center">Lead Time</th>
+        <th class="text-right">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>SRT-SS-96</strong></td>
+        <td>Stainless Steel Panel - 96 inch</td>
+        <td class="text-center">2</td>
+        <td class="text-right">$60.00</td>
+        <td class="text-center">3-5 days</td>
+        <td class="text-right">$120.00</td>
+      </tr>
+      <tr>
+        <td><strong>WRT-5W</strong></td>
+        <td>Wire Rack - 5 Wire</td>
+        <td class="text-center">3</td>
+        <td class="text-right">$220.00</td>
+        <td class="text-center">7 days</td>
+        <td class="text-right">$660.00</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div class="totals-row">
+      <span>Subtotal:</span>
+      <span>$780.00</span>
+    </div>
+    <div class="totals-row">
+      <span>Tax (8.25%):</span>
+      <span>$64.35</span>
+    </div>
+    <div class="totals-row">
+      <span>Discount:</span>
+      <span>-$200.00</span>
+    </div>
+    <div class="totals-row">
+      <span>Shipping:</span>
+      <span>$100.00</span>
+    </div>
+    <div class="totals-row total">
+      <span>TOTAL:</span>
+      <span>$744.35</span>
+    </div>
+  </div>
+
+  <div class="terms">
+    <div class="terms-cell">
+      <div class="terms-label">Terms & Conditions</div>
+      <div class="terms-value">Prices valid for 14 days. Payment due upon receipt.</div>
+    </div>
+    <div class="terms-cell">
+      <div class="terms-label">Delivery</div>
+      <div class="terms-value">Delivery additional. Lead times are estimates.</div>
+    </div>
+    <div class="terms-cell">
+      <div class="terms-label">Contact</div>
+      <div class="terms-value">Questions? Email info@steeleriver.com</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Thank you for your business! | Steel River Technologies | www.steeleriver.com
+  </div>
+</body>
+</html>

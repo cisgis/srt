@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from app.database import get_db, next_doc_number
 from app.services import pdf_service, email_service
 from app.logger import log_info, log_error
+import config
 
 router = APIRouter(prefix="/quotes", tags=["quotes"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
@@ -397,37 +398,112 @@ async def quote_edit_submit(
 
 @router.get("/{quote_number}/pdf")
 def quote_pdf(quote_number: str):
-    db = get_db()
-    quote = dict(
-        db.execute(
-            "SELECT * FROM Quote WHERE quote_number=?", (quote_number,)
-        ).fetchone()
-    )
-    client = {}
-    if quote.get("client_id"):
-        row = db.execute(
-            "SELECT * FROM Clients WHERE client_id=?", (quote["client_id"],)
-        ).fetchone()
-        if row:
-            client = dict(row)
-    items = [
-        dict(r)
-        for r in db.execute(
-            """
-        SELECT qi.*, pn.description
-        FROM Quote_Items qi JOIN PartNumber pn ON qi.parts_number=pn.parts_number
-        WHERE qi.quote_number=?
-    """,
-            (quote_number,),
-        ).fetchall()
-    ]
-    db.close()
-    pdf = pdf_service.build_quote_pdf(quote, client, items)
-    return Response(
-        content=pdf,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{quote_number}.pdf"'},
-    )
+    try:
+        db = get_db()
+        quote = dict(
+            db.execute(
+                "SELECT * FROM Quote WHERE quote_number=?", (quote_number,)
+            ).fetchone()
+        )
+        client = {}
+        if quote.get("client_id"):
+            row = db.execute(
+                "SELECT * FROM Clients WHERE client_id=?", (quote["client_id"],)
+            ).fetchone()
+            if row:
+                client = dict(row)
+        items = [
+            dict(r)
+            for r in db.execute(
+                """
+            SELECT qi.*, pn.description
+            FROM Quote_Items qi JOIN PartNumber pn ON qi.parts_number=pn.parts_number
+            WHERE qi.quote_number=?
+        """,
+                (quote_number,),
+            ).fetchall()
+        ]
+        db.close()
+
+        # Calculate totals
+        subtotal = sum(
+            item.get("quantity", 0) * item.get("quoted_price", 0) for item in items
+        )
+        if quote.get("rental_days"):
+            subtotal = subtotal * quote["rental_days"]
+        tax_rate = quote.get("sales_tax_rate") or 0
+        tax = subtotal * tax_rate
+        discount = quote.get("discount") or 0
+        shipping = quote.get("shipping_cost") or 0
+        total = subtotal + tax - discount + shipping
+
+        # Convert logo to base64
+        import base64
+
+        logo_b64 = ""
+        logo_path = config.LOGO_PATH
+        if logo_path and logo_path.exists():
+            with open(logo_path, "rb") as f:
+                logo_b64 = base64.b64encode(f.read()).decode("utf-8")
+                # Determine content type
+                if logo_path.suffix.lower() == ".png":
+                    logo_b64 = f"data:image/png;base64,{logo_b64}"
+                elif logo_path.suffix.lower() == ".webp":
+                    logo_b64 = f"data:image/webp;base64,{logo_b64}"
+                elif logo_path.suffix.lower() in [".jpg", ".jpeg"]:
+                    logo_b64 = f"data:image/jpeg;base64,{logo_b64}"
+
+        from fastapi.templating import Jinja2Templates
+        from pathlib import Path
+
+        TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
+        templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
+
+        context = {
+            "quote": quote,
+            "client": client,
+            "items": items,
+            "subtotal": subtotal,
+            "tax": tax,
+            "total": total,
+            "logo_data": logo_b64,
+        }
+
+        html_content = templates.get_template("quotes/pdf.html").render(context)
+
+        # Generate PDF using Playwright
+        import asyncio
+
+        async def generate_pdf():
+            from playwright.async_api import async_playwright
+
+            async with async_playwright() as p:
+                browser = await p.chromium.launch()
+                page = await browser.new_page()
+                await page.set_content(html_content)
+                await page.wait_for_load_state("networkidle")
+                pdf = await page.pdf(
+                    format="Letter",
+                    print_background=True,
+                    display_header_footer=False,
+                )
+                await browser.close()
+                return pdf
+
+        pdf_content = asyncio.run(generate_pdf())
+
+        return Response(
+            content=pdf_content,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{quote_number}.pdf"'
+            },
+        )
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return HTMLResponse(f"Error generating PDF: {e}", status_code=500)
 
 
 @router.post("/{quote_number}/send")

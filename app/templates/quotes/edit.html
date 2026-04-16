@@ -90,7 +90,7 @@
   <div id="line-items">
     {% for item in items %}
     <div class="line-item-row" style="background:#222;border-radius:4px;padding:12px;margin-bottom:12px;">
-      <div style="display:grid;grid-template-columns:2fr 80px 1fr;gap:8px;align-items:end;margin-bottom:12px;">
+      <div style="display:grid;grid-template-columns:2fr 40px;gap:8px;align-items:end;margin-bottom:12px;">
         <div>
           <label>Catalog Item *</label>
           <select class="parts-select" name="parts_number">
@@ -100,14 +100,14 @@
             {% endfor %}
           </select>
         </div>
-        <button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)">×</button>
+        <button type="button" onclick="removeRow(this)" style="background:none;border:none;cursor:pointer;color:#dc3545;font-size:18px;font-weight:bold;padding:4px;">✕</button>
       </div>
       <div class="yard-rows">
         <div class="yard-row" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:8px;padding:8px;background:#2a2a2a;border-radius:4px;">
           <div><label>Yard</label><div class="yard-name" style="padding:8px;font-size:13px;">{{ item.yard or 'N/A' }}</div></div>
           <div><label>Available</label><div class="yard-avail" style="padding:8px;font-size:13px;">—</div></div>
           <div><label>Qty</label><input type="number" class="yard-qty" name="quantity" min="0" value="{{ item.quantity }}" style="width:100%;padding:8px;" data-unit-price="{{ item.quoted_price }}"></div>
-          <div><label>Lead Time</label><input type="text" class="yard-lead" name="lead_time" value="{{ item.lead_time or '' }}" style="width:100%;padding:8px;"></div>
+          <div><label>Lead Time (days)</label><input type="number" class="yard-lead" name="lead_time" value="{{ item.lead_time or '' }}" min="0" step="1" style="width:100%;padding:8px;"></div>
         </div>
       </div>
       <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
@@ -273,7 +273,7 @@ function updateYardRows(row, partsNumber) {
         <div><label>Yard</label><div class="yard-name" style="padding:8px;font-size:13px;">${yard}</div></div>
         <div><label>Available</label><div class="yard-avail" style="padding:8px;font-size:13px;">${avail}</div></div>
         <div><label>Qty</label><input type="number" class="yard-qty" name="quantity" min="0" value="0" style="width:100%;padding:8px;" max="${avail}"></div>
-        <div><label>Lead Time</label><input type="text" class="yard-lead" name="lead_time" style="width:100%;padding:8px;"></div>
+        <div><label>Lead Time (days)</label><input type="number" class="yard-lead" name="lead_time" min="0" step="1" style="width:100%;padding:8px;"></div>
       `;
       const qtyInput = div.querySelector('.yard-qty');
       qtyInput.dataset.unitPrice = pn.resale_price || 0;
