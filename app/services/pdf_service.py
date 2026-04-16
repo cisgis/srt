@@ -110,7 +110,7 @@ def build_quote_pdf(quote: dict, client: dict, items: list) -> bytes:
 
             # Load content and wait for everything
             await page.goto(
-                f"data:text/html,{html_content.replace('file://', 'file:///').replace("'", '%27')}",
+                f'data:text/html,{html_content.replace("file://", "file:///").replace("\'", "%27")}',
                 wait_until="domcontentloaded",
             )
             await page.wait_for_timeout(2000)
