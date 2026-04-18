@@ -96,48 +96,11 @@
   </div>
 </form>
 
-{% if not updates_disabled %}
-<form method="post" action="/inventory/product/{{ product.serial_number }}/edit" enctype="multipart/form-data">
-  <div class="card">
-    <div class="card-title">Update Status & Location</div>
-    <div class="form-grid-3">
-      <div class="form-group">
-        <label for="status">Status</label>
-        <select id="status" name="status">
-          <option value="">— No Change —</option>
-          {% for s in status_options %}
-          <option value="{{ s }}" {% if product.status == s %}selected{% endif %}>{{ s }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="location">Location</label>
-        <select id="location" name="location">
-          <option value="">— No Change —</option>
-          {% for loc in locations %}
-          <option value="{{ loc.name }}" {% if product.location == loc.name %}selected{% endif %}>{{ loc.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="change_date">Change Date</label>
-        <input type="date" id="change_date" name="change_date" value="" min="{{ min_change_date or '' }}">
-        {% if min_change_date %}
-        <small>Must be on or after {{ min_change_date }}</small>
-        {% endif %}
-      </div>
-    </div>
-    <div style="margin-top: 16px;">
-      <button type="submit" class="btn btn-primary">Save Changes</button>
-    </div>
-  </div>
-</form>
-{% else %}
 <div class="card">
   <div class="card-title">Update Status & Location</div>
-  <p style="color: #666; font-style: italic;">Updates disabled — product status is "{{ product.status }}" (end-of-life).</p>
+  <p style="color: #666; font-style: italic;">Status and location changes are now managed through Packing Slips or Internal Activities only.</p>
+  <p style="color: #666; font-style: italic;">To update this product's status or location, create a <a href="/transactions/internal/new">Internal Move</a> or <a href="/packing-slips/new">Packing Slip</a>.</p>
 </div>
-{% endif %}
 
 {% if lifecycle %}
 <h3 style="margin-top: 2rem;">

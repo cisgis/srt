@@ -20,11 +20,30 @@
       <label>To Location</label>
       <input type="text" name="to_location" list="wh-list" placeholder="Destination warehouse">
     </div>
+    <div class="form-group">
+      <label>From Status</label>
+      <input type="text" name="from_status" list="status-list" placeholder="Current status">
+    </div>
+    <div class="form-group">
+      <label>To Status</label>
+      <input type="text" name="to_status" list="status-list" placeholder="New status">
+    </div>
     <div class="form-group"><label>Ship Date</label><input type="date" name="move_date"></div>
     <div class="form-group"><label>Received Date</label><input type="date" name="receive_date"></div>
     <div class="form-group"><label>Moved By</label><input type="text" name="moved_by" placeholder="Person or carrier"></div>
     <div class="form-group"><label>Reason</label><input type="text" name="reason"></div>
   </div>
+
+  <datalist id="status-list">
+    <option value="Available">
+    <option value="On Rent">
+    <option value="On Loan">
+    <option value="Reserved">
+    <option value="Repairing">
+    <option value="Held">
+    <option value="End of Life">
+    <option value="Sold">
+  </datalist>
 
   <datalist id="wh-list">{% for w in warehouses %}<option value="{{ w.ship_from }}">{% endfor %}</datalist>
 
@@ -34,7 +53,7 @@
   </div>
   <div class="table-wrap" style="margin-bottom:16px;">
   <table class="line-items-table">
-    <thead><tr><th>Serial No.</th><th>Catalog</th><th>Description</th><th>Current Location</th><th></th></tr></thead>
+    <thead><tr><th>Serial No.</th><th>Catalog</th><th>Description</th><th>Location</th><th>Status</th><th></th></tr></thead>
     <tbody id="parts-body"></tbody>
   </table>
   </div>
@@ -50,7 +69,7 @@
 <script>
 const PRODUCTS = [
   {% for p in products %}
-  { sn: {{ p.serial_number|tojson }}, pn: {{ p.parts_number|tojson }}, desc: {{ (p.description or "")|tojson }}, loc: {{ (p.location or "")|tojson }} },
+  { sn: {{ p.serial_number|tojson }}, pn: {{ p.parts_number|tojson }}, desc: {{ (p.description or "")|tojson }}, loc: {{ (p.location or "")|tojson }}, status: {{ (p.status or "")|tojson }} },
   {% endfor %}
 ];
 let parts = [];
@@ -68,6 +87,7 @@ function renderParts() {
       <td style="font-size:11px;">${prod?.pn||""}</td>
       <td style="font-size:11px;color:var(--text2);">${prod?.desc||""}</td>
       <td style="font-size:11px;color:var(--text2);">${prod?.loc||""}</td>
+      <td style="font-size:11px;color:var(--text2);">${prod?.status||""}</td>
       <td><button type="button" class="btn btn-sm btn-danger" onclick="removePart(${i})">✕</button></td>
     `;
     tbody.appendChild(tr);

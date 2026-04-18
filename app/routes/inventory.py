@@ -5,7 +5,7 @@ from pathlib import Path
 from datetime import date, datetime
 import shutil
 import config
-from app.database import get_db
+from app.database import get_db, close_db
 from app.logger import log_info, log_error
 
 router = APIRouter(prefix="/inventory", tags=["inventory"])
@@ -15,7 +15,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 def get_status_options():
     db = get_db()
     rows = db.execute("SELECT name FROM Status ORDER BY display_order").fetchall()
-    db.close()
+    close_db()
     return [r["name"] for r in rows]
 
 
@@ -24,7 +24,7 @@ def get_yard_locations():
     rows = db.execute(
         "SELECT name FROM Location WHERE is_yard=1 ORDER BY name"
     ).fetchall()
-    db.close()
+    close_db()
     return [r["name"] for r in rows]
 
 
@@ -37,7 +37,7 @@ def check_sn(serial_number: str):
         ).fetchone()
         is not None
     )
-    db.close()
+    close_db()
     return {"exists": exists}
 
 
@@ -92,7 +92,7 @@ def inventory_overview(
     partnumbers = db.execute(q, args).fetchall()
     vendors = db.execute("SELECT * FROM Vendor ORDER BY name").fetchall()
     locations = db.execute("SELECT * FROM Location ORDER BY name").fetchall()
-    db.close()
+    close_db()
 
     return templates.TemplateResponse(
         "inventory/list.html",
@@ -114,7 +114,7 @@ def inventory_overview(
 def partnumber_new(request: Request):
     db = get_db()
     vendors = db.execute("SELECT * FROM Vendor ORDER BY name").fetchall()
-    db.close()
+    close_db()
     return templates.TemplateResponse(
         "inventory/partnumber_form.html",
         {
@@ -167,10 +167,10 @@ async def partnumber_create(
         db.commit()
         log_info(f"Created PartNumber: {parts_number} by {user}")
     except Exception as e:
-        db.close()
+        close_db()
         log_error(f"Failed to create PartNumber {parts_number}: {e}")
         return HTMLResponse(f"Error: {e}", status_code=400)
-    db.close()
+    close_db()
     return RedirectResponse("/inventory/", status_code=303)
 
 
@@ -196,7 +196,7 @@ def partnumber_detail(request: Request, parts_number: str):
 
     vendors = db.execute("SELECT * FROM Vendor ORDER BY name").fetchall()
     locations = db.execute("SELECT * FROM Location ORDER BY name").fetchall()
-    db.close()
+    close_db()
 
     from datetime import date, timedelta
 
@@ -225,7 +225,7 @@ def partnumber_edit_page(request: Request, parts_number: str):
         "SELECT * FROM PartNumber WHERE parts_number=?", (parts_number,)
     ).fetchone()
     vendors = db.execute("SELECT * FROM Vendor ORDER BY name").fetchall()
-    db.close()
+    close_db()
     return templates.TemplateResponse(
         "inventory/partnumber_form.html",
         {
@@ -275,7 +275,7 @@ async def partnumber_edit(
     )
     db.commit()
     log_info(f"Updated PartNumber: {parts_number} by {user}")
-    db.close()
+    close_db()
     return RedirectResponse(f"/inventory/part-number/{parts_number}", status_code=303)
 
 
@@ -289,7 +289,7 @@ def product_new(request: Request, parts_number: str = ""):
     yard_locations = db.execute(
         "SELECT name FROM Location WHERE is_yard=1 ORDER BY name"
     ).fetchall()
-    db.close()
+    close_db()
 
     suggested_serial = ""
     if parts_number:
@@ -343,7 +343,7 @@ async def product_create(
         "SELECT serial_number FROM Product WHERE serial_number=?", (serial_number,)
     ).fetchone()
     if existing:
-        db.close()
+        close_db()
         return HTMLResponse(
             f"""<!DOCTYPE html>
 <html><head><title>Error</title><link rel="stylesheet" href="/static/css/main.css"></head>
@@ -376,10 +376,10 @@ async def product_create(
         db.commit()
         log_info(f"Created Product: {serial_number} by {user}")
     except Exception as e:
-        db.close()
+        close_db()
         log_error(f"Failed to create Product {serial_number}: {e}")
         return HTMLResponse(f"Error: {e}", status_code=400)
-    db.close()
+    close_db()
     return RedirectResponse(f"/inventory/part-number/{parts_number}", status_code=303)
 
 
@@ -462,7 +462,7 @@ def product_detail(request: Request, serial_number: str):
     rental_price = product["rental_price"] if product else None
 
     locations = db.execute("SELECT * FROM Location ORDER BY name").fetchall()
-    db.close()
+    close_db()
     return templates.TemplateResponse(
         "inventory/product_detail.html",
         {
@@ -520,7 +520,7 @@ async def product_edit(
     ).fetchone()
 
     if not existing:
-        db.close()
+        close_db()
         return RedirectResponse(f"/inventory/product/{serial_number}", status_code=303)
 
     new_mtr_fn = save_file(mtr_file, "mtr") or existing["mtr_filename"]
@@ -556,7 +556,7 @@ async def product_edit(
             ).fetchone()
 
             if latest and latest["change_date"] and latest["change_date"] > today:
-                db.close()
+                close_db()
                 return HTMLResponse(
                     f"Error: Change date cannot be earlier than the last recorded date ({latest['change_date']}). History chain would be broken.",
                     status_code=400,
@@ -630,5 +630,5 @@ async def product_edit(
 
     db.commit()
     log_info(f"Updated Product: {serial_number} by {user}")
-    db.close()
+    close_db()
     return RedirectResponse(f"/inventory/product/{serial_number}", status_code=303)

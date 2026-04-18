@@ -1,13 +1,51 @@
 {% extends "base.html" %}
 {% block title %}Packing Slips — SRT{% endblock %}
 {% block page_title %}Packing Slips{% endblock %}
-{% block page_sub %}{% endblock %}
+{% block page_sub %}Manage packing slips{% endblock %}
 {% set active = "packing_slips" %}
 
+{% block topbar_actions %}{% endblock %}
+
 {% block content %}
-<div class="empty-state">
-  <div style="font-size: 48px; margin-bottom: 16px;">🚧</div>
-  <h2>Under Construction</h2>
-  <p>Packing slip management is being updated. Check back soon.</p>
+{% if packing_slips %}
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Packing Slip #</th>
+      <th>Date</th>
+      <th>Quote #</th>
+      <th>P.O. #</th>
+      <th>Ship To</th>
+      <th>Tracking #</th>
+      <th>Created By</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for pl in packing_slips %}
+  <tr>
+    <td><a href="/packing-slips/{{ pl.packing_slip_number }}">{{ pl.packing_slip_number }}</a></td>
+    <td>{{ pl.packing_slip_date or "—" }}</td>
+    <td>{{ pl.quote_number or "—" }}</td>
+    <td>{{ pl.po_number or "—" }}</td>
+    <td>{{ pl.ship_to or "—" }}</td>
+    <td>{{ pl.tracking_number or "—" }}</td>
+    <td>{{ pl.created_by or "-" }}</td>
+    <td style="text-align:right;">
+      <a href="/packing-slips/{{ pl.packing_slip_number }}" class="btn btn-sm">View</a>
+      <a href="/packing-slips/{{ pl.packing_slip_number }}/pdf" class="btn btn-sm" target="_blank">PDF</a>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
 </div>
+{% else %}
+<div class="empty-state">
+  <div style="font-size: 48px; margin-bottom: 16px;">📦</div>
+  <h2>No packing slips yet</h2>
+  <p>Packing slips are created from accepted quotes.</p>
+</div>
+{% endif %}
 {% endblock %}

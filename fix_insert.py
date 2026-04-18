@@ -1,0 +1,11 @@
+f = open("app/routes/packing_slips.py", "r")
+ln = f.readlines()
+f.close()
+# Replace 15 ? with 14 ?
+ln[140] = ln[140].replace(
+    "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", "(?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+)
+f = open("app/routes/packing_slips.py", "w")
+f.writelines(ln)
+f.close()
+print("Fixed")

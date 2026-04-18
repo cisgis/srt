@@ -202,8 +202,6 @@ document.getElementById('client_company').addEventListener('change', function() 
       opt.dataset.siteAddress = client.site_address || '';
       contactSelect.appendChild(opt);
     });
-    clientIdInput.value = clientsByCompany[company][0].client_id;
-    document.getElementById('ship_to').value = clientsByCompany[company][0].site_address || '';
   }
 });
 
@@ -240,12 +238,13 @@ function removeRow(btn) {
 function attachRowListeners(row) {
   const select = row.querySelector('.parts-select');
   const partsOptions = partnumbers.map(p => 
-    `<option value="${p.parts_number}" data-resale="${p.resale_price || 0}" data-rental="${p.rental_price || 0}">${p.parts_number} - ${p.description || ''}</option>`
+    '<option value="' + p.parts_number + '" data-resale="' + (p.resale_price || 0) + '" data-rental="' + (p.rental_price || 0) + '">' + p.parts_number + ' - ' + (p.description || '') + '</option>'
   ).join('');
   select.innerHTML = '<option value="">— Select —</option>' + partsOptions;
   
   select.addEventListener('change', function() {
     updateYardRows(row, this.value);
+    updatePrices();
     calculateTotal();
   });
   
@@ -265,8 +264,8 @@ function updateYardRows(row, partsNumber) {
   if (!pn) return;
   
   yards.forEach(yard => {
-    const availKey = yard.toLowerCase().replace(' ', '_');
-    const avail = pn[availKey] || 0;
+    const availData = pn.availability || {};
+    const avail = availData[yard] || 0;
     if (avail > 0) {
       const yardRow = yardTemplate.content.cloneNode(true);
       yardRow.querySelector('.yard-name').textContent = yard;
@@ -324,8 +323,8 @@ function calculateTotal() {
     subtotal += lineTotal;
   });
   
-  const taxAmount = subtotal * (taxRate / 100);
-  const total = subtotal + taxAmount - discount + shipping;
+  const taxAmount = (subtotal - discount) * (taxRate / 100);
+  const total = subtotal - discount + taxAmount + shipping;
   
   document.getElementById('subtotal').textContent = '$' + subtotal.toFixed(2);
   document.getElementById('tax-amount').textContent = '$' + taxAmount.toFixed(2);
@@ -370,6 +369,7 @@ document.getElementById('quote-form').addEventListener('submit', function(e) {
 });
 
 addLineItem();
+updatePrices();
 calculateTotal();
 </script>
 {% endblock %}

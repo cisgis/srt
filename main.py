@@ -6,7 +6,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from pathlib import Path
 
-from app.database import init_db
+from app.database import get_db, close_db, init_db
 from app.routes.inventory import router as inv_router
 from app.routes.quotes import router as q_router
 from app.routes.packing_slips import router as pl_router
@@ -20,7 +20,6 @@ from app.routes.other import (
 )
 from app.routes.pdf_api import router as pdf_api_router
 from app.logger import log_info, log_error, log_warning
-from app.database import get_db
 
 
 @asynccontextmanager
@@ -76,7 +75,7 @@ def login_submit(
         "SELECT * FROM Users WHERE username=? AND password=? AND is_active=1",
         (username, password),
     ).fetchone()
-    db.close()
+    close_db()
 
     if user:
         request.session["authenticated"] = True
@@ -103,8 +102,6 @@ def root(request: Request):
     if not request.session.get("authenticated"):
         return RedirectResponse("/login", status_code=303)
 
-    from app.database import get_db
-
     db = get_db()
     stats = {
         "total_products": db.execute("SELECT COUNT(*) FROM Product").fetchone()[0],
@@ -118,7 +115,8 @@ def root(request: Request):
     }
     recent_quotes = []
     recent_pls = []
-    db.close()
+    close_db()
+
     return templates.TemplateResponse(
         "dashboard.html",
         {
@@ -133,4 +131,4 @@ def root(request: Request):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False, workers=1)

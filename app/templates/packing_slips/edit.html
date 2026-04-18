@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}New Packing Slip — SRT{% endblock %}
-{% block page_title %}New Packing Slip{% endblock %}
-{% block page_sub %}{% if quote_number %}From Quote {{ quote_number }}{% endif %}{% endblock %}
+{% block title %}{% if is_edit %}Edit{% else %}New{% endif %} Packing Slip — SRT{% endblock %}
+{% block page_title %}{% if is_edit %}Edit Packing Slip{% elif pl %}View Packing Slip{% else %}New Packing Slip{% endif %}{% endblock %}
+{% block page_sub %}{% if pl and not is_edit %}{{ pl.packing_slip_number }}{% elif is_edit %}{{ pl.packing_slip_number }}{% elif quote_number %}From Quote {{ quote_number }}{% endif %}{% endblock %}
 {% set active = "packing_slips" %}
 
 {% block topbar_actions %}
@@ -9,36 +9,53 @@
 {% endblock %}
 
 {% block content %}
-<form method="post" action="/packing-slips/new" id="pl-form">
-  <input type="hidden" name="quote_number" value="{{ quote_number or '' }}">
-  <input type="hidden" name="client_id" value="{{ client_id or '' }}">
+<form method="post" action="{% if pl %}/packing-slips/{{ pl.packing_slip_number }}/edit{% else %}/packing-slips/new{% endif %}" id="pl-form">
+  <input type="hidden" name="quote_number" value="{{ pl.quote_number or quote_number or '' }}">
+  <input type="hidden" name="client_id" value="{{ pl.client_id or client_id or '' }}">
   <input type="hidden" name="items_json" id="items_json">
-  <input type="hidden" name="ship_from" value="Steel River Warehouse">
+  <input type="hidden" name="ship_from" value="{{ pl.ship_from or 'Steel River Warehouse' }}">
 
   <div class="form-grid" style="grid-template-columns: 0.5fr 0.8fr 0.7fr 1fr 1.5fr;">
     <div class="form-group">
       <label>Date *</label>
-      <input type="date" name="packing_slip_date" value="{{ today }}" required>
+      <input type="date" name="packing_slip_date" value="{{ pl.packing_slip_date or today }}" required>
     </div>
     <div class="form-group">
       <label>P.O. #</label>
-      <input type="text" name="po_number" placeholder="PO">
+      <input type="text" name="po_number" value="{{ pl.po_number or '' }}">
     </div>
     <div class="form-group">
       <label>Via</label>
-      <input type="text" name="ship_via" placeholder="Carrier">
+      <input type="text" name="ship_via" value="{{ pl.ship_via or '' }}">
     </div>
     <div class="form-group">
       <label>Tracking #</label>
-      <input type="text" name="tracking_number" placeholder="#">
+      <input type="text" name="tracking_number" value="{{ pl.tracking_number or '' }}">
     </div>
     <div class="form-group">
       <label>Ship To *</label>
-      <input type="text" name="ship_to" value="{{ ship_to or '' }}" required>
+      <input type="text" name="ship_to" value="{{ pl.ship_to or '' }}" required>
     </div>
   </div>
 
-{% if quote_items %}
+{% if pl_items and (is_edit or not is_edit) %}
+  <h3 style="margin-top: 24px; margin-bottom: 12px;">Packing Slip Items</h3>
+  <p style="color: #666; margin-bottom: 16px;">Serial numbers assigned to this packing slip.</p>
+  
+  <div id="line-items">
+    {% for item in pl_items %}
+    <div class="card" style="margin-bottom: 16px; border: 1px solid #444;">
+      <div class="card-title">{{ item.parts_number }}</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px;">
+        <div>
+          <label>Serial Number</label>
+          <div style="padding: 8px; font-weight: bold;">{{ item.serial_number }}</div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+{% elif quote_items %}
   <h3 style="margin-top: 24px; margin-bottom: 12px;">Quote Items</h3>
   <p style="color: #666; margin-bottom: 16px;">Select serial numbers for each item from the available inventory.</p>
   
@@ -73,7 +90,7 @@
               {% if not item.yard or p.location == item.yard %}
               <tr>
                 <td style="padding: 6px 8px;">
-                  <input type="checkbox" name="sn_{{ item.parts_number }}" value="{{ p.serial_number }}" class="sn-checkbox">
+                  <input type="checkbox" name="sn_{{ item.parts_number }}" value="{{ p.serial_number }}" class="sn-checkbox" {% if pl_items and p.serial_number in pl_items|map(attribute='serial_number') %}checked{% endif %}>
                 </td>
                 <td style="padding: 6px 8px;">{{ p.serial_number }}</td>
                 <td style="padding: 6px 8px; color: #888;">{{ p.status }}</td>
@@ -91,6 +108,10 @@
     </div>
   {% endfor %}
   </div>
+{% elif is_edit %}
+  <div class="empty-state">
+    <p>This packing slip has no items assigned.</p>
+  </div>
 {% else %}
   <div class="empty-state">
     <p>No items from quote. Please add items manually.</p>
@@ -99,7 +120,7 @@
 
   <div class="form-actions" style="margin-top: 24px;">
     <a href="/packing-slips/" class="btn">Cancel</a>
-    <button type="submit" class="btn btn-primary">Create Packing Slip</button>
+    <button type="submit" class="btn btn-primary">{% if is_edit or pl %}Save Edits{% else %}Create Packing Slip{% endif %}</button>
   </div>
 </form>
 

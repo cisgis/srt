@@ -22,6 +22,7 @@
       <th>Discount</th>
       <th>Shipping</th>
       <th>Total</th>
+      <th>Created By</th>
       <th>Status</th>
       <th></th>
     </tr>
@@ -37,6 +38,7 @@
     <td>-${{ "%.2f"|format(q.discount_value|float) }}</td>
     <td>${{ "%.2f"|format(q.shipping_value|float) }}</td>
     <td>${{ "%.2f"|format(q.total_value|float) }}</td>
+    <td>{{ q.created_by or "-" }}</td>
     <td>{{ q.status or "Draft" }}</td>
     <td style="text-align:right;">
       <a href="/quotes/{{ q.quote_number }}" class="btn btn-sm">Edit</a>

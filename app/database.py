@@ -1,14 +1,57 @@
 import sqlite3
+import threading
+import time
 from pathlib import Path
 from datetime import datetime
 from config import DB_PATH
 
 
+_thread_local = threading.local()
+_write_lock = threading.Lock()
+
+
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    if not hasattr(_thread_local, "conn") or _thread_local.conn is None:
+        conn = sqlite3.connect(DB_PATH, timeout=30, isolation_level="EXCLUSIVE")
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout = 60000")
+        _thread_local.conn = conn
+
+    return _thread_local.conn
+
+
+def get_write_lock():
+    return _write_lock
+
+
+def get_current_db():
+    return getattr(_thread_local, "conn", None)
+
+
+def close_db(conn=None):
+    if conn is None:
+        if hasattr(_thread_local, "conn") and _thread_local.conn:
+            try:
+                _thread_local.conn.rollback()
+            except:
+                pass
+            try:
+                _thread_local.conn.close()
+            except:
+                pass
+            _thread_local.conn = None
+    elif hasattr(_thread_local, "conn") and conn == _thread_local.conn:
+        try:
+            conn.rollback()
+        except:
+            pass
+        try:
+            conn.close()
+        except:
+            pass
+        _thread_local.conn = None
 
 
 def get_current_user(request):
@@ -67,29 +110,33 @@ def init_db():
 def next_doc_number(conn, prefix: str, date_str: str) -> str:
     """Generate next sequential document number.
     prefix='Q'|'PL'|'INV', date_str='MMDDYYYY' -> e.g. 'Q03152026-001'
-
-    FIX (Bug 3): Previously used COUNT(*) which broke if any doc in the
-    sequence was deleted — e.g. deleting -002 after creating -003 would
-    re-generate -002 and crash on the PRIMARY KEY constraint.
-    Now uses MAX to find the highest existing sequence number so it always
-    increments correctly regardless of gaps.
     """
     pattern = f"{prefix}{date_str}-%"
-    row = conn.execute(
-        "SELECT MAX(doc_number) FROM doc_sequences WHERE doc_number LIKE ?", (pattern,)
-    ).fetchone()
 
-    seq = 1
-    if row and row[0]:
-        # doc_number format is e.g. "Q03152026-007" — parse the trailing digits
+    for attempt in range(100):
+        row = conn.execute(
+            "SELECT MAX(doc_number) FROM doc_sequences WHERE doc_number LIKE ?",
+            (pattern,),
+        ).fetchone()
+
+        seq = 1
+        if row and row[0]:
+            try:
+                seq = int(row[0].rsplit("-", 1)[-1]) + 1
+            except (ValueError, IndexError):
+                seq = 1
+
+        doc_number = f"{prefix}{date_str}-{seq:03d}"
+
         try:
-            seq = int(row[0].rsplit("-", 1)[-1]) + 1
-        except (ValueError, IndexError):
-            seq = 1
+            conn.execute("INSERT INTO doc_sequences VALUES (?)", (doc_number,))
+            conn.commit()
+            return doc_number
+        except sqlite3.IntegrityError:
+            conn.rollback()
+            continue
 
-    doc_number = f"{prefix}{date_str}-{seq:03d}"
-    conn.execute("INSERT INTO doc_sequences VALUES (?)", (doc_number,))
-    return doc_number
+    raise ValueError(f"Could not generate unique document number after 100 attempts")
 
 
 SCHEMA = """
@@ -203,7 +250,8 @@ CREATE TABLE IF NOT EXISTS Packing_Slip (
     created_by TEXT,
     created_at TEXT,
     modified_by TEXT,
-    modified_at TEXT
+    modified_at TEXT,
+    tracking_number TEXT
 );
 CREATE TABLE IF NOT EXISTS Invoice (
     invoice_number      TEXT PRIMARY KEY,
@@ -325,7 +373,8 @@ CREATE TABLE IF NOT EXISTS Packing_Slip (
     delivered_by         TEXT,
     ship_from            TEXT,
     ship_to              TEXT,
-    client_id            TEXT REFERENCES Clients(client_id)
+    client_id            TEXT REFERENCES Clients(client_id),
+    tracking_number TEXT
 );
 CREATE TABLE IF NOT EXISTS Invoice (
     invoice_number      TEXT PRIMARY KEY,
@@ -362,6 +411,12 @@ CREATE TABLE IF NOT EXISTS Transaction_Internal_Items (
     item_id            INTEGER PRIMARY KEY AUTOINCREMENT,
     transaction_int_id INTEGER NOT NULL REFERENCES Transaction_Internal(transaction_int_id) ON DELETE CASCADE,
     serial_number      TEXT    NOT NULL REFERENCES Product(serial_number)
+);
+CREATE TABLE IF NOT EXISTS Packing_Slip_Items (
+    item_id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    packing_slip_number  TEXT NOT NULL REFERENCES Packing_Slip(packing_slip_number) ON DELETE CASCADE,
+    parts_number         TEXT NOT NULL,
+    serial_number        TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS Email_Log (
     log_id          INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from datetime import datetime
-from app.database import get_db, next_doc_number
+from app.database import get_db, close_db, next_doc_number
 from app.services import pdf_service, email_service
 from app.logger import log_info, log_error
 
@@ -54,7 +54,7 @@ async def inv_create(
     )
     db.commit()
     log_info(f"Created Invoice: {invnum} by {user}")
-    db.close()
+    close_db()
     return RedirectResponse(f"/invoices/{invnum}", status_code=303)
 
 
@@ -74,7 +74,7 @@ async def inv_update_po(inv_number: str, purchase_number: str = Form(...)):
         (purchase_number, inv_number),
     )
     db.commit()
-    db.close()
+    close_db()
     return RedirectResponse(f"/invoices/{inv_number}", status_code=303)
 
 
@@ -118,7 +118,7 @@ def inv_pdf(inv_number: str):
                     (pl["quote_number"],),
                 ).fetchall()
             ]
-    db.close()
+    close_db()
     pdf = pdf_service.build_invoice_pdf(inv, pl, client, items, quote)
     return Response(
         content=pdf,
@@ -139,7 +139,7 @@ async def inv_send(
         "SELECT * FROM Invoice WHERE invoice_number=?", (inv_number,)
     ).fetchone()
     if not inv:
-        db.close()
+        close_db()
         return {"ok": False, "error": f"Invoice '{inv_number}' not found"}
 
     inv = dict(inv)
@@ -174,7 +174,7 @@ async def inv_send(
                     (pl["quote_number"],),
                 ).fetchall()
             ]
-    db.close()
+    close_db()
     pdf = pdf_service.build_invoice_pdf(inv, pl, client, items, quote)
     result = email_service.send_document_email(
         to_email, subject, body, pdf, f"{inv_number}.pdf"
@@ -194,6 +194,6 @@ async def inv_send(
         ),
     )
     db.commit()
-    db.close()
+    close_db()
 
     return {"ok": result["ok"], "error": result.get("error")}

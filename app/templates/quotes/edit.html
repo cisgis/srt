@@ -3,25 +3,42 @@
 {% block page_title %}Edit Quote {{ quote_number }}{% endblock %}
 {% block page_sub %}{% endblock %}
 {% set active = "quotes" %}
+{% set is_editable = quote.status == "DRAFT" %}
 
 {% block topbar_actions %}
 <a href="/quotes/" class="btn">← Back</a>
+<a href="/quotes/{{ quote_number }}/pdf" class="btn" target="_blank">Download PDF</a>
+{% if quote.status == "DRAFT" %}
+<form method="post" action="/quotes/{{ quote_number }}/status" style="display:inline;">
+  <input type="hidden" name="status" value="SENT">
+  <button type="submit" class="btn btn-primary">Mark as Sent</button>
+</form>
+{% elif quote.status == "SENT" %}
+<form method="post" action="/quotes/{{ quote_number }}/status" style="display:inline;">
+  <input type="hidden" name="status" value="PO Received">
+  <button type="submit" class="btn btn-primary">Mark as PO Received</button>
+</form>
+{% endif %}
+<a href="/quotes/{{ quote_number }}/create-packing-slip" class="btn" {% if quote.status != "PO Received" %}style="display:none;"{% endif %}>Create Packing Slip</a>
 {% endblock %}
 
 {% block content %}
-<form method="post" action="/quotes/{{ quote_number }}/edit" id="quote-form">
+{% if not is_editable %}
+<div class="card" style="background: #f0f0f0; border-left: 4px solid #f39c12; margin-bottom: 16px;">
+  <div style="font-weight: bold; color: #f39c12;">READ ONLY - Quote has been sent to client</div>
+  <p style="margin: 8px 0 0 0; color: #666;">To make changes, please contact the client for a new quote.</p>
+</div>
+{% endif %}
+
+<form method="post" action="/quotes/{{ quote_number }}/edit" id="quote-form" {% if not is_editable %}style="pointer-events:none; opacity:0.7;"{% endif %}>
   <input type="hidden" name="quote_number" value="{{ quote_number }}">
   
   <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;">
     <div class="form-group">
-      <label>Quote Type *</label>
-      <div style="display:flex;gap:16px;">
-        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
-          <input type="radio" name="quote_type" value="SALE" {% if quote.quote_type != 'RENTAL' %}checked{% endif %}> Sale
-        </label>
-        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
-          <input type="radio" name="quote_type" value="RENTAL" {% if quote.quote_type == 'RENTAL' %}checked{% endif %}> Rental
-        </label>
+      <label>Quote Type</label>
+      <input type="hidden" name="quote_type" value="{{ quote.quote_type }}">
+      <div style="padding:6px 12px; font-weight:bold; font-size:16px;">
+        {{ "RENTAL" if quote.quote_type == "RENTAL" else "SALE" }}
       </div>
     </div>
 
@@ -82,7 +99,7 @@
 
     <div class="form-group">
       <label for="sales_tax_rate">Sales Tax (%)</label>
-      <input type="number" id="sales_tax_rate" name="sales_tax_rate" value="{{ (quote.sales_tax_rate or 0) * 100 }}" step="0.01" min="0">
+      <input type="number" id="sales_tax_rate" name="sales_tax_rate" value="{{ ((quote.sales_tax_rate|default(0.0825)) * 100)|round(2) }}" step="0.01" min="0">
     </div>
   </div>
 
@@ -103,9 +120,11 @@
         <button type="button" onclick="removeRow(this)" style="background:none;border:none;cursor:pointer;color:#dc3545;font-size:18px;font-weight:bold;padding:4px;">✕</button>
       </div>
       <div class="yard-rows">
+        {% set pt = partnumbers|selectattr('parts_number', 'equalto', item.parts_number)|first %}
+        {% set avail = pt.availability[item.yard] if pt and item.yard else 0 %}
         <div class="yard-row" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:8px;padding:8px;background:#2a2a2a;border-radius:4px;">
           <div><label>Yard</label><div class="yard-name" style="padding:8px;font-size:13px;">{{ item.yard or 'N/A' }}</div></div>
-          <div><label>Available</label><div class="yard-avail" style="padding:8px;font-size:13px;">—</div></div>
+          <div><label>Available</label><div class="yard-avail" style="padding:8px;font-size:13px;">{{ avail if avail else '-' }}</div></div>
           <div><label>Qty</label><input type="number" class="yard-qty" name="quantity" min="0" value="{{ item.quantity }}" style="width:100%;padding:8px;" data-unit-price="{{ item.quoted_price }}"></div>
           <div><label>Lead Time (days)</label><input type="number" class="yard-lead" name="lead_time" value="{{ item.lead_time or '' }}" min="0" step="1" style="width:100%;padding:8px;"></div>
         </div>
@@ -194,8 +213,6 @@ document.getElementById('client_company').addEventListener('change', function() 
       opt.dataset.siteAddress = client.site_address || '';
       contactSelect.appendChild(opt);
     });
-    clientIdInput.value = clientsByCompany[company][0].client_id;
-    document.getElementById('ship_to').value = clientsByCompany[company][0].site_address || '';
   }
 });
 
@@ -240,11 +257,13 @@ function attachRowListeners(row) {
     if (pn) {
       opt.dataset.resale = pn.resale_price || 0;
       opt.dataset.rental = pn.rental_price || 0;
+      opt.dataset.availability = JSON.stringify(pn.availability || {});
     }
   });
   
   select.addEventListener('change', function() {
     updateYardRows(row, this.value);
+    updatePrices();
     calculateTotal();
   });
   
@@ -262,19 +281,19 @@ function updateYardRows(row, partsNumber) {
   const pn = partnumbers.find(p => p.parts_number === partsNumber);
   if (!pn) return;
   
+  const availData = pn.availability || {};
+  
   yards.forEach(yard => {
-    const availKey = yard.toLowerCase().replace(' ', '_');
-    const avail = pn[availKey] || 0;
+    const avail = availData[yard] || 0;
     if (avail > 0) {
       const div = document.createElement('div');
       div.className = 'yard-row';
       div.style = 'display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:8px;padding:8px;background:#2a2a2a;border-radius:4px;';
-      div.innerHTML = `
-        <div><label>Yard</label><div class="yard-name" style="padding:8px;font-size:13px;">${yard}</div></div>
-        <div><label>Available</label><div class="yard-avail" style="padding:8px;font-size:13px;">${avail}</div></div>
-        <div><label>Qty</label><input type="number" class="yard-qty" name="quantity" min="0" value="0" style="width:100%;padding:8px;" max="${avail}"></div>
-        <div><label>Lead Time (days)</label><input type="number" class="yard-lead" name="lead_time" min="0" step="1" style="width:100%;padding:8px;"></div>
-      `;
+      div.innerHTML = 
+        '<div><label>Yard</label><div class="yard-name" style="padding:8px;font-size:13px;">' + yard + '</div></div>' +
+        '<div><label>Available</label><div class="yard-avail" style="padding:8px;font-size:13px;">' + avail + '</div></div>' +
+        '<div><label>Qty</label><input type="number" class="yard-qty" name="quantity" min="0" value="0" style="width:100%;padding:8px;" max="' + avail + '"></div>' +
+        '<div><label>Lead Time (days)</label><input type="number" class="yard-lead" name="lead_time" min="0" step="1" style="width:100%;padding:8px;"></div>';
       const qtyInput = div.querySelector('.yard-qty');
       qtyInput.dataset.unitPrice = pn.resale_price || 0;
       qtyInput.dataset.rentalPrice = pn.rental_price || 0;
@@ -289,7 +308,8 @@ function updateYardRows(row, partsNumber) {
 }
 
 function updatePrices() {
-  const rental = document.querySelector('input[name="quote_type"]:checked').value === 'RENTAL';
+  const rentalInput = document.querySelector('input[name="quote_type"]');
+  const rental = rentalInput && rentalInput.value === 'RENTAL';
   document.querySelectorAll('.yard-qty').forEach(qty => {
     const resalePrice = parseFloat(qty.dataset.resalePrice || qty.dataset.unitPrice || 0);
     const rentalPrice = parseFloat(qty.dataset.rentalPrice || 0);
@@ -300,7 +320,8 @@ function updatePrices() {
 
 function calculateTotal() {
   let subtotal = 0;
-  const rental = document.querySelector('input[name="quote_type"]:checked').value === 'RENTAL';
+  const rentalInput = document.querySelector('input[name="quote_type"]');
+  const rental = rentalInput && rentalInput.value === 'RENTAL';
   const rentalDays = parseInt(document.getElementById('rental_days').value) || 0;
   const taxRate = parseFloat(document.getElementById('sales_tax_rate').value) || 0;
   const discount = parseFloat(document.getElementById('discount').value) || 0;
@@ -326,8 +347,8 @@ function calculateTotal() {
     subtotal += lineTotal;
   });
   
-  const taxAmount = subtotal * (taxRate / 100);
-  const total = subtotal + taxAmount - discount + shipping;
+  const taxAmount = (subtotal - discount) * (taxRate / 100);
+  const total = subtotal - discount + taxAmount + shipping;
   
   document.getElementById('subtotal').textContent = '$' + subtotal.toFixed(2);
   document.getElementById('tax-amount').textContent = '$' + taxAmount.toFixed(2);
@@ -367,7 +388,23 @@ document.getElementById('quote-form').addEventListener('submit', function(e) {
   }
 });
 
-document.querySelectorAll('.line-item-row').forEach(attachRowListeners);
+document.querySelectorAll('.line-item-row').forEach(row => {
+  const select = row.querySelector('.parts-select');
+  const selectedOption = select.options[select.selectedIndex];
+  if (selectedOption && selectedOption.value) {
+    const pn = partnumbers.find(p => p.parts_number === selectedOption.value);
+    if (pn) {
+      selectedOption.dataset.resale = pn.resale_price || 0;
+      selectedOption.dataset.rental = pn.rental_price || 0;
+    }
+  }
+  
+  row.querySelectorAll('.yard-qty').forEach(qty => {
+    qty.addEventListener('input', calculateTotal);
+  });
+});
+
+updatePrices();
 calculateTotal();
 </script>
 {% endblock %}

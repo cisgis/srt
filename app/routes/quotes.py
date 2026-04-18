@@ -3,8 +3,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import json
+import asyncio
 from datetime import datetime, timedelta
-from app.database import get_db, next_doc_number
+from app.database import get_db, close_db, next_doc_number
 from app.services import pdf_service, email_service
 from app.logger import log_info, log_error
 import config
@@ -14,6 +15,18 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 
 PAYMENT_TERMS = ["COD", "Net 7", "Net 14", "Net 21", "Net 30", "Net 60"]
 
+# Cached browser for PDF generation
+_pdf_browser = None
+_pdf_browser_context = None
+
+
+async def get_pdf_browser():
+    from playwright.async_api import async_playwright
+
+    p = await async_playwright().start()
+    browser = await p.chromium.launch()
+    return browser
+
 
 @router.get("/", response_class=HTMLResponse)
 def quotes_list(request: Request):
@@ -22,7 +35,7 @@ def quotes_list(request: Request):
         SELECT q.*, c.name as client_name
         FROM Quote q
         LEFT JOIN Clients c ON q.client_id = c.client_id
-        ORDER BY q.quote_date DESC
+        ORDER BY q.created_at DESC
     """).fetchall()
     quotes_list = [dict(q) for q in quotes]
 
@@ -38,18 +51,19 @@ def quotes_list(request: Request):
             item_subtotal = item_subtotal * rental_days
 
         tax_rate = float(q.get("sales_tax_rate") or 0)
-        tax = item_subtotal * tax_rate
         discount = float(q.get("discount") or 0)
         shipping = float(q.get("shipping_cost") or 0)
 
-        total = item_subtotal + tax - discount + shipping
+        tax = (item_subtotal - discount) * tax_rate
+
+        total = (item_subtotal - discount) * (1 + tax_rate) + shipping
 
         q["subtotal_value"] = item_subtotal
         q["discount_value"] = discount
         q["shipping_value"] = shipping
         q["total_value"] = total
 
-    db.close()
+    close_db()
     return templates.TemplateResponse(
         "quotes/list.html", {"request": request, "quotes": quotes_list}
     )
@@ -101,8 +115,18 @@ def quote_new(request: Request):
         ORDER BY pn.parts_number
     """).fetchall()
 
-    partnumbers_json = [dict(p) for p in partnumbers]
-    db.close()
+    partnumbers_json = []
+    for pn in partnumbers:
+        pn_dict = dict(pn)
+        avail = {}
+        for yard in yards_list:
+            col_name = yard.lower().replace(" ", "_")
+            avail[yard] = pn_dict.get(col_name, 0)
+            if col_name in pn_dict:
+                del pn_dict[col_name]
+        pn_dict["availability"] = avail
+        partnumbers_json.append(pn_dict)
+    close_db()
 
     today = datetime.now().strftime("%Y-%m-%d")
     expiration = (datetime.now().date() + timedelta(days=14)).strftime("%Y-%m-%d")
@@ -149,8 +173,10 @@ async def quote_create(
         mmddyyyy = datetime.strptime(quote_date, "%Y-%m-%d").strftime("%m%d%Y")
         qnum = next_doc_number(db, "Q", mmddyyyy)
 
+        db.execute("""ALTER TABLE Quote ADD COLUMN status TEXT DEFAULT 'DRAFT'""")
+
         db.execute(
-            """INSERT INTO Quote (quote_number, quote_type, quote_date, quote_expiration_date, payment_term, ship_to, ship_from, sales_tax_rate, rental_days, discount, shipping_cost, client_id, created_by, created_at, modified_by, modified_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            """INSERT INTO Quote (quote_number, quote_type, quote_date, quote_expiration_date, payment_term, ship_to, ship_from, sales_tax_rate, rental_days, discount, shipping_cost, client_id, status, created_by, created_at, modified_by, modified_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 qnum,
                 quote_type,
@@ -164,6 +190,7 @@ async def quote_create(
                 float(discount or 0) if discount else 0,
                 float(shipping_cost or 0) if shipping_cost else 0,
                 int(client_id) if client_id and client_id.isdigit() else None,
+                "DRAFT",
                 user,
                 now,
                 user,
@@ -200,7 +227,7 @@ async def quote_create(
             )
         db.commit()
         log_info(f"Created Quote: {qnum} by {user}")
-        db.close()
+        close_db()
         return RedirectResponse(f"/quotes/{qnum}", status_code=303)
     except Exception as e:
         log_error(f"Failed to create quote: {e}")
@@ -221,7 +248,7 @@ def quote_edit(request: Request, quote_number: str):
     )
 
     if not quote:
-        db.close()
+        close_db()
         return HTMLResponse("Quote not found", status_code=404)
 
     print(f"DEBUG: quote_number={quote_number}")
@@ -267,13 +294,35 @@ def quote_edit(request: Request, quote_number: str):
         FROM PartNumber pn ORDER BY pn.parts_number
     """).fetchall()
 
+    # Get availability by parts_number and location from Product table
+    availability = {}
+    for pn in partnumbers:
+        pn_name = pn["parts_number"]
+        availability[pn_name] = {}
+        for loc in locations:
+            loc_name = loc["name"]
+            count = db.execute(
+                """
+                SELECT COUNT(*) as cnt FROM Product 
+                WHERE parts_number=? AND location=? AND status='Available'
+            """,
+                (pn_name, loc_name),
+            ).fetchone()["cnt"]
+            availability[pn_name][loc_name] = count
+
     items_query = db.execute(
         "SELECT * FROM Quote_Items WHERE quote_number=?", (quote_number,)
     ).fetchall()
     items = [dict(r) for r in items_query]
 
-    partnumbers_json = [dict(p) for p in partnumbers]
-    db.close()
+    # Add availability to partnumbers_json
+    partnumbers_json = []
+    for pn in partnumbers:
+        pn_dict = dict(pn)
+        pn_dict["availability"] = availability.get(pn["parts_number"], {})
+        partnumbers_json.append(pn_dict)
+
+    close_db()
 
     subtotal = sum(item["quantity"] * item["quoted_price"] for item in items)
     if quote.get("rental_days"):
@@ -335,7 +384,7 @@ async def quote_edit_submit(
             """UPDATE Quote SET 
                 quote_type=?, quote_date=?, quote_expiration_date=?, payment_term=?,
                 ship_to=?, ship_from=?, sales_tax_rate=?, rental_days=?,
-                discount=?, shipping_cost=?, client_id=?, modified_by=?, modified_at=?
+                discount=?, shipping_cost=?, client_id=?, contact_person=?, modified_by=?, modified_at=?
             WHERE quote_number=?""",
             (
                 quote_type,
@@ -349,6 +398,7 @@ async def quote_edit_submit(
                 float(discount or 0) if discount else 0,
                 float(shipping_cost or 0) if shipping_cost else 0,
                 int(client_id) if client_id and client_id.isdigit() else None,
+                contact_person or None,
                 user,
                 now,
                 quote_number,
@@ -386,7 +436,7 @@ async def quote_edit_submit(
 
         db.commit()
         log_info(f"Updated Quote: {quote_number} by {user}")
-        db.close()
+        close_db()
         return RedirectResponse(f"/quotes/{quote_number}", status_code=303)
     except Exception as e:
         log_error(f"Failed to update quote {quote_number}: {e}")
@@ -394,6 +444,61 @@ async def quote_edit_submit(
 
         traceback.print_exc()
         return HTMLResponse(f"Error: {e}", status_code=400)
+
+
+@router.post("/{quote_number}/status")
+async def quote_update_status(
+    request: Request,
+    quote_number: str,
+    status: str = Form(...),
+):
+    user = request.session.get("username", "unknown")
+    now = datetime.now().isoformat()
+
+    db = get_db()
+    db.execute(
+        "UPDATE Quote SET status=?, modified_by=?, modified_at=? WHERE quote_number=?",
+        (status, user, now, quote_number),
+    )
+    db.commit()
+    close_db()
+    log_info(f"Quote {quote_number} status changed to {status} by {user}")
+    return RedirectResponse(f"/quotes/{quote_number}", status_code=303)
+
+
+@router.get("/{quote_number}/create-packing-slip")
+def quote_create_packing_slip(request: Request, quote_number: str):
+    db = get_db()
+    quote_row = db.execute(
+        "SELECT * FROM Quote WHERE quote_number=?", (quote_number,)
+    ).fetchone()
+    if not quote_row:
+        close_db()
+        return HTMLResponse("Quote not found", status_code=404)
+
+    quote = dict(quote_row)
+
+    items = db.execute(
+        "SELECT * FROM Quote_Items WHERE quote_number=?", (quote_number,)
+    ).fetchall()
+    close_db()
+
+    items_list = [dict(i) for i in items]
+    items_json = json.dumps(
+        [
+            {
+                "parts_number": i["parts_number"],
+                "quantity": i["quantity"],
+                "yard": i.get("yard", ""),
+            }
+            for i in items_list
+        ]
+    )
+
+    return RedirectResponse(
+        f"/packing-slips/new?quote_number={quote_number}&client_id={quote.get('client_id')}&ship_to={quote.get('ship_to', '')}&items_json={items_json}",
+        status_code=303,
+    )
 
 
 @router.get("/{quote_number}/pdf")
@@ -423,7 +528,7 @@ def quote_pdf(quote_number: str):
                 (quote_number,),
             ).fetchall()
         ]
-        db.close()
+        close_db()
 
         # Calculate totals
         subtotal = sum(
@@ -432,10 +537,10 @@ def quote_pdf(quote_number: str):
         if quote.get("rental_days"):
             subtotal = subtotal * quote["rental_days"]
         tax_rate = quote.get("sales_tax_rate") or 0
-        tax = subtotal * tax_rate
         discount = quote.get("discount") or 0
         shipping = quote.get("shipping_cost") or 0
-        total = subtotal + tax - discount + shipping
+        tax = (subtotal - discount) * tax_rate
+        total = subtotal - discount + tax + shipping
 
         # Convert logo to base64
         import base64
@@ -471,24 +576,21 @@ def quote_pdf(quote_number: str):
 
         html_content = templates.get_template("quotes/pdf.html").render(context)
 
-        # Generate PDF using Playwright
-        import asyncio
-
         async def generate_pdf():
-            from playwright.async_api import async_playwright
-
-            async with async_playwright() as p:
-                browser = await p.chromium.launch()
-                page = await browser.new_page()
-                await page.set_content(html_content)
-                await page.wait_for_load_state("networkidle")
-                pdf = await page.pdf(
-                    format="Letter",
-                    print_background=True,
-                    display_header_footer=False,
-                )
-                await browser.close()
-                return pdf
+            browser = await get_pdf_browser()
+            context = await browser.new_context()
+            page = await context.new_page()
+            await page.set_content(html_content)
+            await page.wait_for_load_state("networkidle")
+            pdf = await page.pdf(
+                format="Letter",
+                print_background=True,
+                display_header_footer=False,
+            )
+            await page.close()
+            await context.close()
+            await browser.close()
+            return pdf
 
         pdf_content = asyncio.run(generate_pdf())
 
@@ -518,7 +620,7 @@ async def quote_send(
         "SELECT * FROM Quote WHERE quote_number=?", (quote_number,)
     ).fetchone()
     if not quote:
-        db.close()
+        close_db()
         return {"ok": False, "error": f"Quote '{quote_number}' not found"}
 
     quote = dict(quote)
@@ -540,7 +642,7 @@ async def quote_send(
             (quote_number,),
         ).fetchall()
     ]
-    db.close()
+    close_db()
     pdf = pdf_service.build_quote_pdf(quote, client, items)
     result = email_service.send_document_email(
         to_email, subject, body, pdf, f"{quote_number}.pdf"
@@ -560,6 +662,6 @@ async def quote_send(
         ),
     )
     db.commit()
-    db.close()
+    close_db()
 
     return {"ok": result["ok"], "error": result.get("error")}

@@ -4,7 +4,7 @@ from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from datetime import datetime
 import json, sqlite3
-from app.database import get_db
+from app.database import get_db, close_db
 from app.logger import log_info, log_error
 
 # ── Clients ──────────────────────────────────────────────────
@@ -16,7 +16,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 def clients_list(request: Request):
     db = get_db()
     clients = db.execute("SELECT * FROM Clients ORDER BY company, name").fetchall()
-    db.close()
+    close_db()
     return templates.TemplateResponse(
         "clients/list.html", {"request": request, "clients": clients}
     )
@@ -55,7 +55,7 @@ async def client_create(
     )
     db.commit()
     log_info(f"Created Client: {name} by {user}")
-    db.close()
+    close_db()
     return RedirectResponse("/clients/", status_code=303)
 
 
@@ -92,7 +92,7 @@ async def client_edit(
     )
     db.commit()
     log_info(f"Updated Client ID {client_id} by {user}")
-    db.close()
+    close_db()
     return RedirectResponse("/clients/", status_code=303)
 
 
@@ -103,14 +103,14 @@ async def client_delete(client_id: int):
         db.execute("DELETE FROM Clients WHERE client_id=?", (client_id,))
         db.commit()
     except sqlite3.IntegrityError:
-        db.close()
+        close_db()
         return JSONResponse(
             status_code=409,
             content={
                 "error": f"Cannot delete this client because they have associated quotes, packing slips, or invoices. Remove those records first."
             },
         )
-    db.close()
+    close_db()
     return RedirectResponse("/clients/", status_code=303)
 
 
@@ -126,7 +126,7 @@ def vendors_list(request: Request):
         FROM Vendor v LEFT JOIN PartNumber pn ON v.name=pn.vendor_name
         GROUP BY v.name ORDER BY v.name
     """).fetchall()
-    db.close()
+    close_db()
     return templates.TemplateResponse(
         "vendors/list.html", {"request": request, "vendors": vendors}
     )
@@ -143,7 +143,7 @@ async def vendor_create(request: Request, name: str = Form(...)):
     )
     db.commit()
     log_info(f"Created Vendor: {name} by {user}")
-    db.close()
+    close_db()
     return RedirectResponse("/vendors/", status_code=303)
 
 
@@ -164,7 +164,7 @@ async def vendor_edit(request: Request, name: str, new_name: str = Form(...)):
     )
     db.commit()
     log_info(f"Updated Vendor: {name} -> {new_name} by {user}")
-    db.close()
+    close_db()
     return RedirectResponse("/vendors/", status_code=303)
 
 
@@ -175,14 +175,14 @@ async def vendor_delete(name: str):
         db.execute("DELETE FROM Vendor WHERE name=?", (name,))
         db.commit()
     except sqlite3.IntegrityError:
-        db.close()
+        close_db()
         return JSONResponse(
             status_code=409,
             content={
                 "error": f"Cannot delete vendor '{name}' because they have products assigned. Reassign or remove those products first."
             },
         )
-    db.close()
+    close_db()
     return RedirectResponse("/vendors/", status_code=303)
 
 
@@ -194,7 +194,7 @@ locations_router = APIRouter(prefix="/locations", tags=["locations"])
 def locations_list(request: Request):
     db = get_db()
     locations = db.execute("SELECT * FROM Location ORDER BY name").fetchall()
-    db.close()
+    close_db()
     return templates.TemplateResponse(
         "locations/list.html", {"request": request, "locations": locations}
     )
@@ -219,12 +219,12 @@ async def location_create(
         db.commit()
         log_info(f"Created Location: {name} by {user}")
     except sqlite3.IntegrityError:
-        db.close()
+        close_db()
         return JSONResponse(
             status_code=409,
             content={"error": f"Location '{name}' already exists."},
         )
-    db.close()
+    close_db()
     return RedirectResponse("/locations/", status_code=303)
 
 
@@ -235,7 +235,7 @@ async def location_delete(request: Request, name: str):
     db.execute("DELETE FROM Location WHERE name=?", (name,))
     db.commit()
     log_info(f"Deleted Location: {name} by {user}")
-    db.close()
+    close_db()
     return RedirectResponse("/locations/", status_code=303)
 
 
@@ -257,7 +257,7 @@ async def location_edit(
     )
     db.commit()
     log_info(f"Updated Location: {name} by {user}")
-    db.close()
+    close_db()
     return RedirectResponse("/locations/", status_code=303)
 
 
@@ -275,7 +275,7 @@ def txn_ext_list(request: Request):
         LEFT JOIN Clients c ON ps.client_id=c.client_id
         ORDER BY te.outbound_date DESC
     """).fetchall()
-    db.close()
+    close_db()
     return templates.TemplateResponse(
         "transactions/customer_list.html", {"request": request, "txns": txns}
     )
@@ -293,7 +293,7 @@ def txn_ext_new(request: Request):
            JOIN PartNumber pn ON p.parts_number = pn.parts_number 
            ORDER BY p.serial_number"""
     ).fetchall()
-    db.close()
+    close_db()
     return templates.TemplateResponse(
         "transactions/customer_form.html",
         {
@@ -358,7 +358,7 @@ async def txn_ext_create(
         )
     db.commit()
     log_info(f"Created Transaction_External ID {tid} by {user}")
-    db.close()
+    close_db()
     return RedirectResponse("/transactions/customer/", status_code=303)
 
 
@@ -379,7 +379,7 @@ async def txn_ext_return(txn_id: int, inbound_date: str = Form(...)):
             (p["serial_number"],),
         )
     db.commit()
-    db.close()
+    close_db()
     return RedirectResponse("/transactions/customer/", status_code=303)
 
 
@@ -393,7 +393,7 @@ def txn_int_list(request: Request):
     txns = db.execute(
         "SELECT * FROM Transaction_Internal ORDER BY move_date DESC"
     ).fetchall()
-    db.close()
+    close_db()
     return templates.TemplateResponse(
         "transactions/internal_list.html", {"request": request, "txns": txns}
     )
@@ -409,7 +409,7 @@ def txn_int_new(request: Request):
            ORDER BY p.serial_number"""
     ).fetchall()
     warehouses = db.execute("SELECT * FROM Warehouse").fetchall()
-    db.close()
+    close_db()
     return templates.TemplateResponse(
         "transactions/internal_form.html",
         {
@@ -425,6 +425,8 @@ async def txn_int_create(
     request: Request,
     from_location: str = Form(""),
     to_location: str = Form(""),
+    from_status: str = Form(""),
+    to_status: str = Form(""),
     move_date: str = Form(""),
     receive_date: str = Form(""),
     moved_by: str = Form(""),
@@ -445,13 +447,19 @@ async def txn_int_create(
     user = request.session.get("username", "unknown")
 
     db = get_db()
+
+    db.execute("""ALTER TABLE Transaction_Internal ADD COLUMN from_status TEXT""")
+    db.execute("""ALTER TABLE Transaction_Internal ADD COLUMN to_status TEXT""")
+
     cur = db.execute(
         """INSERT INTO Transaction_Internal
-        (from_location, to_location, move_date, receive_date, moved_by, reason, created_by, created_at, modified_by, modified_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?)""",
+        (from_location, to_location, from_status, to_status, move_date, receive_date, moved_by, reason, created_by, created_at, modified_by, modified_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             from_location or None,
             to_location or None,
+            from_status or None,
+            to_status or None,
             move_date or None,
             receive_date or None,
             moved_by or None,
@@ -463,16 +471,48 @@ async def txn_int_create(
         ),
     )
     tid = cur.lastrowid
+
+    change_date = move_date or now[:10]
+
     for sn in parts_list:
         db.execute(
             "INSERT INTO Transaction_Internal_Items (transaction_int_id, serial_number) VALUES (?,?)",
             (tid, sn),
         )
-        db.execute(
-            "UPDATE Product SET location=?, modified_by=?, modified_at=? WHERE serial_number=?",
-            (to_location, user, now, sn),
-        )
+
+        product = db.execute(
+            "SELECT * FROM Product WHERE serial_number=?", (sn,)
+        ).fetchone()
+
+        if product:
+            new_loc = to_location if to_location else product["location"]
+            new_status = to_status if to_status else product["status"]
+
+            db.execute(
+                "UPDATE Product SET location=?, status=?, modified_by=?, modified_at=? WHERE serial_number=?",
+                (new_loc, new_status, user, now, sn),
+            )
+
+            if (to_location and to_location != product["location"]) or (
+                to_status and to_status != product["status"]
+            ):
+                db.execute(
+                    """INSERT INTO Product_Lifecycle 
+                    (serial_number, change_date, old_location, new_location, old_status, new_status, transaction_type, transaction_id)
+                    VALUES (?,?,?,?,?,?,?,?)""",
+                    (
+                        sn,
+                        change_date,
+                        product["location"],
+                        new_loc,
+                        product["status"],
+                        new_status,
+                        "INTERNAL",
+                        tid,
+                    ),
+                )
+
     db.commit()
+    close_db()
     log_info(f"Created Transaction_Internal ID {tid} by {user}")
-    db.close()
     return RedirectResponse("/transactions/internal/", status_code=303)
