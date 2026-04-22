@@ -5,7 +5,7 @@ from pathlib import Path
 from datetime import datetime
 import json
 import sqlite3
-from app.database import get_db, get_write_lock, next_doc_number
+from app.database import get_db, get_write_lock, next_doc_number, close_db
 from app.services import pdf_service, email_service
 from app.logger import log_info, log_error
 
@@ -19,6 +19,7 @@ def pl_list(request: Request):
     pl_list = db.execute(
         "SELECT * FROM Packing_Slip ORDER BY created_at DESC"
     ).fetchall()
+    close_db()
 
     return templates.TemplateResponse(
         "packing_slips/list.html", {"request": request, "packing_slips": pl_list}
@@ -61,7 +62,7 @@ def pl_new(
                 }
             )
 
-            query = "SELECT serial_number, location, status FROM Product WHERE parts_number=? AND status='Available'"
+            query = "SELECT serial_number, location, status FROM Product WHERE parts_number=? AND status='In Stock'"
             params = [parts_number]
             if yard:
                 query += " AND location=?"
@@ -72,6 +73,7 @@ def pl_new(
             available_products[parts_number] = [dict(p) for p in prods]
 
     today = datetime.now().strftime("%Y-%m-%d")
+    close_db()
 
     return templates.TemplateResponse(
         "packing_slips/form.html",
@@ -194,46 +196,47 @@ def pl_detail(request: Request, pl_number: str):
         "SELECT * FROM Packing_Slip_Items WHERE packing_slip_number=?", (pl_number,)
     ).fetchall()
 
-    return templates.TemplateResponse(
-        "packing_slips/edit.html",
-        {"request": request, "pl": pl, "pl_items": pl_items, "is_edit": False},
-    )
-
-
-@router.get("/{pl_number}/edit", response_class=HTMLResponse)
-def pl_edit(request: Request, pl_number: str):
-    db = get_db()
-    pl = dict(
-        db.execute(
-            "SELECT * FROM Packing_Slip WHERE packing_slip_number=?", (pl_number,)
-        ).fetchone()
-    )
-    pl_items = db.execute(
-        "SELECT * FROM Packing_Slip_Items WHERE packing_slip_number=?", (pl_number,)
+    locations = db.execute(
+        "SELECT name FROM Location WHERE is_yard=1 ORDER BY name"
     ).fetchall()
+    yards_list = [l["name"] for l in locations]
+    locations_list = [{"name": l["name"]} for l in locations]
 
     quote_items = []
     available_products = {}
     for item in pl_items:
         parts_number = item["parts_number"]
+        current_sn = item["serial_number"]
+        
+        prods = db.execute(
+            "SELECT serial_number, location, status FROM Product WHERE parts_number=? AND (status='In Stock' OR serial_number=?) ORDER BY location, serial_number",
+            (parts_number, current_sn),
+        ).fetchall()
+        
+        products_by_yard = {}
+        for p in prods:
+            pd = dict(p)
+            yard = pd.get("location", "")
+            if yard not in products_by_yard:
+                products_by_yard[yard] = []
+            products_by_yard[yard].append(pd)
+        available_products[parts_number] = products_by_yard
+        
+        current_loc = db.execute(
+            "SELECT location FROM Product WHERE serial_number=?", (current_sn,)
+        ).fetchone()
+        current_yard = current_loc["location"] if current_loc else ""
+        
         quote_items.append(
             {
                 "parts_number": parts_number,
                 "quantity": 1,
-                "yard": "",
+                "yard": current_yard,
             }
         )
-        prods = db.execute(
-            "SELECT serial_number, location, status FROM Product WHERE parts_number=? AND (status='Available' OR serial_number=?) ORDER BY serial_number",
-            (parts_number, item["serial_number"]),
-        ).fetchall()
-        available_products[parts_number] = [dict(p) for p in prods]
 
-    locations = db.execute(
-        "SELECT name FROM Location WHERE is_yard=1 ORDER BY name"
-    ).fetchall()
-    locations_list = [{"name": l["name"]} for l in locations]
     today = datetime.now().strftime("%Y-%m-%d")
+    close_db()
 
     return templates.TemplateResponse(
         "packing_slips/edit.html",
@@ -244,8 +247,80 @@ def pl_edit(request: Request, pl_number: str):
             "quote_items": quote_items,
             "available_products": available_products,
             "locations": locations_list,
+            "yards": yards_list,
+            "today": today,
+            "is_edit": False,
+            "success": "",
+        },
+    )
+
+@router.get("/{pl_number}/edit", response_class=HTMLResponse)
+def pl_edit(request: Request, pl_number: str, success: str = ""):
+    db = get_db()
+    pl = dict(
+        db.execute(
+            "SELECT * FROM Packing_Slip WHERE packing_slip_number=?", (pl_number,)
+        ).fetchone()
+    )
+    pl_items = db.execute(
+        "SELECT * FROM Packing_Slip_Items WHERE packing_slip_number=?", (pl_number,)
+    ).fetchall()
+
+    locations = db.execute(
+        "SELECT name FROM Location WHERE is_yard=1 ORDER BY name"
+    ).fetchall()
+    yards_list = [l["name"] for l in locations]
+    locations_list = [{"name": l["name"]} for l in locations]
+
+    quote_items = []
+    available_products = {}
+    for item in pl_items:
+        parts_number = item["parts_number"]
+        current_sn = item["serial_number"]
+        
+        prods = db.execute(
+            "SELECT serial_number, location, status FROM Product WHERE parts_number=? AND (status='In Stock' OR serial_number=?) ORDER BY location, serial_number",
+            (parts_number, current_sn),
+        ).fetchall()
+        
+        products_by_yard = {}
+        for p in prods:
+            pd = dict(p)
+            yard = pd.get("location", "")
+            if yard not in products_by_yard:
+                products_by_yard[yard] = []
+            products_by_yard[yard].append(pd)
+        available_products[parts_number] = products_by_yard
+        
+        current_loc = db.execute(
+            "SELECT location FROM Product WHERE serial_number=?", (current_sn,)
+        ).fetchone()
+        current_yard = current_loc["location"] if current_loc else ""
+        
+        quote_items.append(
+            {
+                "parts_number": parts_number,
+                "quantity": 1,
+                "yard": current_yard,
+            }
+        )
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    close_db()
+
+    return templates.TemplateResponse(
+        "packing_slips/edit.html",
+        {
+            "request": request,
+            "pl": pl,
+            "pl_items": pl_items,
+            "quote_items": quote_items,
+            "available_products": available_products,
+            "locations": locations_list,
+            "yards": yards_list,
             "today": today,
             "is_edit": True,
+            "success": success,
         },
     )
 
@@ -288,6 +363,10 @@ async def pl_update(
     except:
         items = []
 
+    current_sns = [dict(r)["serial_number"] for r in db.execute(
+        "SELECT serial_number FROM Packing_Slip_Items WHERE packing_slip_number=?", (pl_number,)
+    ).fetchall()]
+
     if items:
         db.execute(
             "DELETE FROM Packing_Slip_Items WHERE packing_slip_number=?", (pl_number,)
@@ -299,19 +378,135 @@ async def pl_update(
                     "INSERT INTO Packing_Slip_Items (packing_slip_number, parts_number, serial_number) VALUES (?,?,?)",
                     (pl_number, parts_number, snum),
                 )
+                db.execute(
+                    "UPDATE Product SET status='In Stock' WHERE serial_number=?",
+                    (snum,),
+                )
+
+    for old_sn in current_sns:
+        still_selected = False
+        if items:
+            for item in items:
+                if old_sn in item.get("serial_numbers", []):
+                    still_selected = True
+                    break
+        if not still_selected:
+            db.execute(
+                "UPDATE Product SET status='In Stock' WHERE serial_number=?",
+                (old_sn,),
+            )
 
     db.commit()
+    log_info(f"Updated PL: {pl_number} by {user}")
+    close_db()
 
-    return RedirectResponse(f"/packing-slips/{pl_number}", status_code=303)
+    return RedirectResponse(f"/packing-slips/{pl_number}/edit?success=1", status_code=303)
+
+
+_pdf_browser = None
+
+
+async def _get_pdf_browser():
+    global _pdf_browser
+    if _pdf_browser is None:
+        from playwright.async_api import async_playwright
+        p = await async_playwright().start()
+        _pdf_browser = await p.chromium.launch()
+    return _pdf_browser
 
 
 @router.get("/{pl_number}/pdf")
 def pl_pdf(pl_number: str):
-    db = get_db()
-    pl = dict(
-        db.execute(
-            "SELECT * FROM Packing_Slip WHERE packing_slip_number=?", (pl_number,)
-        ).fetchone()
-    )
-
-    return Response(b"PDF not implemented yet", media_type="application/pdf")
+    try:
+        db = get_db()
+        pl = dict(
+            db.execute(
+                "SELECT * FROM Packing_Slip WHERE packing_slip_number=?", (pl_number,)
+            ).fetchone()
+        )
+        
+        client = {}
+        if pl.get("client_id"):
+            row = db.execute(
+                "SELECT * FROM Clients WHERE client_id=?", (pl["client_id"],)
+            ).fetchone()
+            if row:
+                client = dict(row)
+        
+        pl_items = [
+            dict(r)
+            for r in db.execute(
+                """SELECT pli.*, pn.description 
+                FROM Packing_Slip_Items pli 
+                JOIN PartNumber pn ON pli.parts_number=pn.parts_number
+                WHERE pli.packing_slip_number=?""",
+                (pl_number,),
+            ).fetchall()
+        ]
+        
+        location = db.execute("SELECT * FROM Location WHERE name=?", (pl.get("ship_from"),)).fetchone()
+        ship_from_addr = location["address"] if location else pl.get("ship_from") or ""
+        
+        close_db()
+        
+        from fastapi.templating import Jinja2Templates
+        templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
+        
+        import base64
+        from config import LOGO_PATH
+        
+        logo_b64 = ""
+        logo_path = LOGO_PATH
+        if logo_path and logo_path.exists():
+            with open(logo_path, "rb") as f:
+                logo_b64 = base64.b64encode(f.read()).decode("utf-8")
+                if logo_path.suffix.lower() == ".png":
+                    logo_b64 = f"data:image/png;base64,{logo_b64}"
+                elif logo_path.suffix.lower() == ".webp":
+                    logo_b64 = f"data:image/webp;base64,{logo_b64}"
+                elif logo_path.suffix.lower() in [".jpg", ".jpeg"]:
+                    logo_b64 = f"data:image/jpeg;base64,{logo_b64}"
+        
+        context = {
+            "pl": pl,
+            "client": client,
+            "items": pl_items,
+            "ship_from": ship_from_addr,
+            "logo_data": logo_b64,
+        }
+        html_content = templates.get_template("packing_slips/pdf.html").render(context)
+        
+        import asyncio
+        from playwright.async_api import async_playwright
+        
+        async def generate_pdf():
+            browser = await _get_pdf_browser()
+            page = await browser.new_page()
+            await page.set_content(html_content)
+            await page.wait_for_load_state("networkidle")
+            pdf = await page.pdf(
+                format="Letter",
+                print_background=True,
+                display_header_footer=False,
+            )
+            await page.close()
+            return pdf
+        
+        pdf_content = asyncio.run(generate_pdf())
+        
+        return Response(
+            content=pdf_content,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{pl_number}.pdf"'
+            },
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return HTMLResponse(f"Error generating PDF: {e}", status_code=500)
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response(f"Error: {e}", status_code=500)

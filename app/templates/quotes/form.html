@@ -157,10 +157,14 @@
 </template>
 
 <template id="yard-row-template">
-  <div class="yard-row" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:8px;padding:8px;background:#2a2a2a;border-radius:4px;">
+  <div class="yard-row" style="display:grid;grid-template-columns:1fr 100px 80px 80px 1fr;gap:8px;margin-bottom:8px;padding:8px;background:#2a2a2a;border-radius:4px;">
     <div>
       <label>Yard</label>
       <div class="yard-name" style="padding:8px;font-size:13px;"></div>
+    </div>
+    <div>
+      <label>Status</label>
+      <div class="yard-status" style="padding:8px;font-size:13px;font-weight:bold;"></div>
     </div>
     <div>
       <label>Available</label>
@@ -184,41 +188,6 @@ const clientsByCompany = {{ clients_by_company_json|tojson }};
 const partnumbers = {{ partnumbers_json|tojson }};
 const yards = {{ yards_json|tojson }};
 
-document.getElementById('client_company').addEventListener('change', function() {
-  const company = this.value;
-  const contactSelect = document.getElementById('contact_person');
-  const clientIdInput = document.getElementById('client_id_input');
-  
-  contactSelect.innerHTML = '<option value="">— Select Contact —</option>';
-  clientIdInput.value = '';
-  document.getElementById('ship_to').value = '';
-  
-  if (company && clientsByCompany[company]) {
-    clientsByCompany[company].forEach(client => {
-      const opt = document.createElement('option');
-      opt.value = client.name;
-      opt.textContent = client.name;
-      opt.dataset.clientId = client.client_id;
-      opt.dataset.siteAddress = client.site_address || '';
-      contactSelect.appendChild(opt);
-    });
-  }
-});
-
-document.getElementById('contact_person').addEventListener('change', function() {
-  const option = this.options[this.selectedIndex];
-  document.getElementById('client_id_input').value = option.dataset.clientId || '';
-  document.getElementById('ship_to').value = option.dataset.siteAddress || '';
-});
-
-document.querySelectorAll('input[name="quote_type"]').forEach(radio => {
-  radio.addEventListener('change', function() {
-    document.getElementById('rental-days-group').style.display = this.value === 'RENTAL' ? 'block' : 'none';
-    updatePrices();
-    calculateTotal();
-  });
-});
-
 function addLineItem() {
   const container = document.getElementById('line-items');
   const template = document.getElementById('line-item-template');
@@ -238,7 +207,7 @@ function removeRow(btn) {
 function attachRowListeners(row) {
   const select = row.querySelector('.parts-select');
   const partsOptions = partnumbers.map(p => 
-    '<option value="' + p.parts_number + '" data-resale="' + (p.resale_price || 0) + '" data-rental="' + (p.rental_price || 0) + '">' + p.parts_number + ' - ' + (p.description || '') + '</option>'
+    '<option value="' + p.parts_number + '" data-resale="' + (p.resale_price || 0) + '" data-rental="' + (p.rental_price || 0) + '">' + p.parts_number + '</option>'
   ).join('');
   select.innerHTML = '<option value="">— Select —</option>' + partsOptions;
   
@@ -263,20 +232,50 @@ function updateYardRows(row, partsNumber) {
   const pn = partnumbers.find(p => p.parts_number === partsNumber);
   if (!pn) return;
   
+  const availData = pn.availability || {};
+  const inTransitData = pn.in_transit || {};
+  
   yards.forEach(yard => {
-    const availData = pn.availability || {};
-    const avail = availData[yard] || 0;
-    if (avail > 0) {
+    const inStock = availData[yard] || 0;
+    const inTransit = inTransitData[yard] || 0;
+    
+    if (inStock > 0) {
       const yardRow = yardTemplate.content.cloneNode(true);
+      yardRow.querySelector('.yard-status').textContent = 'In Stock';
+      yardRow.querySelector('.yard-status').style.color = '#4caf50';
       yardRow.querySelector('.yard-name').textContent = yard;
-      yardRow.querySelector('.yard-avail').textContent = avail;
+      yardRow.querySelector('.yard-avail').textContent = inStock;
       const qtyInput = yardRow.querySelector('.yard-qty');
       qtyInput.dataset.partsNumber = partsNumber;
       qtyInput.dataset.unitPrice = pn.resale_price || 0;
       qtyInput.dataset.rentalPrice = pn.rental_price || 0;
       qtyInput.dataset.yard = yard;
-      qtyInput.dataset.maxAvail = avail;
-      qtyInput.max = avail;
+      qtyInput.dataset.status = 'In Stock';
+      qtyInput.dataset.maxAvail = inStock;
+      qtyInput.max = inStock;
+      qtyInput.addEventListener('input', function() {
+        if (parseInt(this.value) > parseInt(this.max)) {
+          this.value = this.max;
+        }
+        calculateTotal();
+      });
+      yardRowsContainer.appendChild(yardRow);
+    }
+    
+    if (inTransit > 0) {
+      const yardRow = yardTemplate.content.cloneNode(true);
+      yardRow.querySelector('.yard-status').textContent = 'In Transit';
+      yardRow.querySelector('.yard-status').style.color = '#ff9800';
+      yardRow.querySelector('.yard-name').textContent = yard;
+      yardRow.querySelector('.yard-avail').textContent = inTransit;
+      const qtyInput = yardRow.querySelector('.yard-qty');
+      qtyInput.dataset.partsNumber = partsNumber;
+      qtyInput.dataset.unitPrice = pn.resale_price || 0;
+      qtyInput.dataset.rentalPrice = pn.rental_price || 0;
+      qtyInput.dataset.yard = yard;
+      qtyInput.dataset.status = 'In Transit';
+      qtyInput.dataset.maxAvail = inTransit;
+      qtyInput.max = inTransit;
       qtyInput.addEventListener('input', function() {
         if (parseInt(this.value) > parseInt(this.max)) {
           this.value = this.max;
@@ -333,6 +332,49 @@ function calculateTotal() {
   document.getElementById('grand-total').textContent = '$' + total.toFixed(2);
 }
 
+document.addEventListener('DOMContentLoaded', function() {
+
+// Set initial Rental Days visibility based on checked radio button
+const checkedQuoteType = document.querySelector('input[name="quote_type"]:checked');
+if (checkedQuoteType) {
+  document.getElementById('rental-days-group').style.display = checkedQuoteType.value === 'RENTAL' ? 'block' : 'none';
+}
+
+document.getElementById('client_company').addEventListener('change', function() {
+  const company = this.value;
+  const contactSelect = document.getElementById('contact_person');
+  const clientIdInput = document.getElementById('client_id_input');
+  
+  contactSelect.innerHTML = '<option value="">— Select Contact —</option>';
+  clientIdInput.value = '';
+  document.getElementById('ship_to').value = '';
+  
+  if (company && clientsByCompany[company]) {
+    clientsByCompany[company].forEach(client => {
+      const opt = document.createElement('option');
+      opt.value = client.name;
+      opt.textContent = client.name;
+      opt.dataset.clientId = client.client_id;
+      opt.dataset.siteAddress = client.site_address || '';
+      contactSelect.appendChild(opt);
+    });
+  }
+});
+
+document.getElementById('contact_person').addEventListener('change', function() {
+  const option = this.options[this.selectedIndex];
+  document.getElementById('client_id_input').value = option.dataset.clientId || '';
+  document.getElementById('ship_to').value = option.dataset.siteAddress || '';
+});
+
+document.querySelectorAll('input[name="quote_type"]').forEach(radio => {
+  radio.addEventListener('change', function() {
+    document.getElementById('rental-days-group').style.display = this.value === 'RENTAL' ? 'block' : 'none';
+    updatePrices();
+    calculateTotal();
+  });
+});
+
 ['discount', 'shipping_cost', 'rental_days', 'sales_tax_rate'].forEach(id => {
   document.getElementById(id).addEventListener('input', calculateTotal);
 });
@@ -348,12 +390,14 @@ document.getElementById('quote-form').addEventListener('submit', function(e) {
       const qty = parseInt(yardRow.querySelector('.yard-qty').value) || 0;
       const price = parseFloat(yardRow.querySelector('.yard-qty').dataset.unitPrice) || 0;
       const leadTime = yardRow.querySelector('.yard-lead').value || '';
+      const status = yardRow.querySelector('.yard-qty').dataset.status || '';
       if (qty > 0) {
         items.push({ 
           parts_number: partsNumber, 
           quantity: qty, 
           quoted_price: price,
           yard: yardRow.querySelector('.yard-qty').dataset.yard,
+          status: status,
           lead_time: leadTime
         });
       }
@@ -371,5 +415,6 @@ document.getElementById('quote-form').addEventListener('submit', function(e) {
 addLineItem();
 updatePrices();
 calculateTotal();
+});
 </script>
 {% endblock %}

@@ -375,7 +375,7 @@ async def txn_ext_return(txn_id: int, inbound_date: str = Form(...)):
     ).fetchall()
     for p in parts:
         db.execute(
-            "UPDATE Product SET status='Available' WHERE serial_number=?",
+            "UPDATE Product SET status='In Stock' WHERE serial_number=?",
             (p["serial_number"],),
         )
     db.commit()

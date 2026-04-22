@@ -11,14 +11,19 @@ _write_lock = threading.Lock()
 
 
 def get_db():
-    if not hasattr(_thread_local, "conn") or _thread_local.conn is None:
-        conn = sqlite3.connect(DB_PATH, timeout=30, isolation_level="EXCLUSIVE")
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout = 60000")
-        _thread_local.conn = conn
-
+    try:
+        if hasattr(_thread_local, "conn") and _thread_local.conn is not None:
+            _thread_local.conn.execute("SELECT 1")
+            return _thread_local.conn
+    except:
+        pass
+    
+    conn = sqlite3.connect(DB_PATH, timeout=30, isolation_level="EXCLUSIVE")
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout = 60000")
+    _thread_local.conn = conn
     return _thread_local.conn
 
 
@@ -75,7 +80,7 @@ def init_db():
 
     if conn.execute("SELECT COUNT(*) FROM Status").fetchone()[0] == 0:
         statuses = [
-            ("Available", 1),
+            ("In Stock", 1),
             ("Pending Cert", 2),
             ("On Loan", 3),
             ("Sold", 4),
@@ -83,6 +88,8 @@ def init_db():
             ("In Repair", 6),
             ("Retired / Decommissioned", 7),
             ("Lost", 8),
+            ("Inbound in Transit", 9),
+            ("Processing / Fulfillment", 10),
         ]
         for name, order in statuses:
             conn.execute(
@@ -179,9 +186,10 @@ CREATE TABLE IF NOT EXISTS Product (
     serial_number                   TEXT PRIMARY KEY,
     parts_number                    TEXT NOT NULL REFERENCES PartNumber(parts_number),
     status                          TEXT CHECK(status IN (
-                                         'Available','Pending Certification','On Loan',
+                                         'In Stock','Pending Certification','On Loan',
                                          'Sold','Damaged','In Repair',
-                                         'Retired / Decommissioned','Lost')),
+                                         'Retired / Decommissioned','Lost',
+                                         'Inbound in Transit','Processing / Fulfillment')),
     location                        TEXT,
     receiving_date                  TEXT,
     certification_expiration_date   TEXT,
@@ -305,9 +313,10 @@ CREATE TABLE IF NOT EXISTS Product (
     serial_number                   TEXT PRIMARY KEY,
     parts_number                    TEXT NOT NULL REFERENCES PartNumber(parts_number),
     status                          TEXT CHECK(status IN (
-                                         'Available','Pending Certification','On Loan',
+                                         'In Stock','Pending Certification','On Loan',
                                          'Sold','Damaged','In Repair',
-                                         'Retired / Decommissioned','Lost')),
+                                         'Retired / Decommissioned','Lost',
+                                         'Inbound in Transit','Processing / Fulfillment')),
     location                        TEXT,
     receiving_date                  TEXT,
     certification_expiration_date   TEXT,

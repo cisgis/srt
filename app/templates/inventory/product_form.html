@@ -37,7 +37,7 @@
       <label for="status">Status *</label>
       <select id="status" name="status" required>
         {% for s in status_options %}
-        <option value="{{ s }}" {% if (product and product.status == s) or (not product and s == 'Available') %}selected{% endif %}>{{ s }}</option>
+        <option value="{{ s }}" {% if (product and product.status == s) or (not product and s == 'In Stock') %}selected{% endif %}>{{ s }}</option>
         {% endfor %}
       </select>
     </div>

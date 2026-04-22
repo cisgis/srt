@@ -9,6 +9,12 @@
 {% endblock %}
 
 {% block content %}
+{% if success %}
+<div class="card" style="background: #d4edda; border-left: 4px solid #28a745; margin-bottom: 16px;">
+  <div style="font-weight: bold; color: #28a745;">✓ The packing slip has been successfully saved.</div>
+</div>
+{% endif %}
+
 <form method="post" action="{% if pl %}/packing-slips/{{ pl.packing_slip_number }}/edit{% else %}/packing-slips/new{% endif %}" id="pl-form">
   <input type="hidden" name="quote_number" value="{{ pl.quote_number or quote_number or '' }}">
   <input type="hidden" name="client_id" value="{{ pl.client_id or client_id or '' }}">
@@ -38,18 +44,74 @@
     </div>
   </div>
 
-{% if pl_items and (is_edit or not is_edit) %}
+{% if pl_items %}
   <h3 style="margin-top: 24px; margin-bottom: 12px;">Packing Slip Items</h3>
-  <p style="color: #666; margin-bottom: 16px;">Serial numbers assigned to this packing slip.</p>
+  <p style="color: #666; margin-bottom: 16px;">{% if is_edit %}Select serial numbers for each item. You can change to other products.{% else %}View selected products.{% endif %}</p>
   
   <div id="line-items">
+    {% set unique_pns = [] %}
     {% for item in pl_items %}
-    <div class="card" style="margin-bottom: 16px; border: 1px solid #444;">
-      <div class="card-title">{{ item.parts_number }}</div>
+      {% if item.parts_number not in unique_pns %}
+        {% set _ = unique_pns.append(item.parts_number) %}
+      {% endif %}
+    {% endfor %}
+    
+    {% for pn in unique_pns %}
+    {% set part_items_sns = [] %}
+    {% for item in pl_items %}
+      {% if item.parts_number == pn %}
+        {% set _ = part_items_sns.append(item.serial_number) %}
+      {% endif %}
+    {% endfor %}
+    {% set req_qty = part_items_sns|length %}
+    {% set prods_map = available_products.get(pn, {}) %}
+    
+    {% set prods_keys = prods_map.keys()|list %}
+    {% set first_yard = prods_keys[0] if prods_keys else '' %}
+    
+    <div class="card" id="item-row-{{ pn }}" style="margin-bottom: 16px; border: 1px solid #444;">
+      <div class="card-title">{{ pn }}</div>
+      
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px;">
         <div>
-          <label>Serial Number</label>
-          <div style="padding: 8px; font-weight: bold;">{{ item.serial_number }}</div>
+          <label>Yard</label>
+          <div style="padding: 8px; font-weight: bold;">{{ first_yard }}</div>
+        </div>
+        <div>
+          <label>Quantity Required</label>
+          <div style="padding: 8px; font-weight: bold;">{{ req_qty }}</div>
+        </div>
+      </div>
+      
+      <label>Select Serial Numbers *</label>
+      <div class="sn-selection" data-parts="{{ pn }}" data-yard="{{ first_yard }}" data-qty="{{ req_qty }}">
+        <div style="max-height: 200px; overflow-y: auto; border: 1px solid #444; border-radius: 4px;">
+          <table style="width: 100%; font-size: 13px;">
+            <thead style="background: #333;">
+              <tr>
+                <th style="padding: 8px; text-align: left;">{% if is_edit %}<input type="checkbox" class="sn-check-all"> {% endif %}Select</th>
+                <th style="padding: 8px; text-align: left;">Serial Number</th>
+                <th style="padding: 8px; text-align: left;">Status</th>
+              </tr>
+            </thead>
+            <tbody class="sn-list">
+              {% for yard_name, yard_prods in prods_map.items() %}
+                {% for prod in yard_prods %}
+              <tr>
+                <td style="padding: 6px 8px;">
+                  <input type="checkbox" name="sn_{{ pn }}" value="{{ prod.serial_number }}" class="sn-checkbox" {% if prod.serial_number in part_items_sns %}checked{% endif %}>
+                </td>
+                <td style="padding: 6px 8px;">{{ prod.serial_number }}</td>
+                <td style="padding: 6px 8px; color: #888;">{{ prod.status }}</td>
+              </tr>
+                {% endfor %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top: 8px; color: #888;">
+          Selected: <span class="sn-count">{{ req_qty }}</span> / {{ req_qty }}
+          <span class="sn-error" style="color: #f44336; margin-left: 8px; display: none;"></span>
         </div>
       </div>
     </div>
@@ -125,6 +187,8 @@
 </form>
 
 <script>
+const isEdit = {{ 'true' if is_edit else 'false' }};
+
 document.querySelectorAll('.sn-check-all').forEach(cb => {
   cb.addEventListener('change', function() {
     const tbody = this.closest('table').querySelector('.sn-list');
@@ -189,5 +253,11 @@ document.getElementById('pl-form').addEventListener('submit', function(e) {
     document.getElementById('items_json').value = JSON.stringify(items);
   }
 });
+
+(function() {
+  document.querySelectorAll('.sn-selection').forEach(sel => {
+    updateSnCount(sel);
+  });
+})();
 </script>
 {% endblock %}

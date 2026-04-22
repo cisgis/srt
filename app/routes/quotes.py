@@ -97,7 +97,8 @@ def quote_new(request: Request):
 
     yard_case = ", ".join(
         [
-            f"COALESCE(SUM(CASE WHEN p.location = '{y['name']}' AND p.status = 'Available' THEN 1 ELSE 0 END), 0) as {y['name'].lower().replace(' ', '_')}"
+            f"COALESCE(SUM(CASE WHEN p.location = '{y['name']}' AND p.status = 'In Stock' THEN 1 ELSE 0 END), 0) as {y['name'].lower().replace(' ', '_')}_in_stock, "
+            f"COALESCE(SUM(CASE WHEN p.location = '{y['name']}' AND p.status = 'Inbound in Transit' THEN 1 ELSE 0 END), 0) as {y['name'].lower().replace(' ', '_')}_in_transit"
             for y in yards
         ]
     )
@@ -119,12 +120,16 @@ def quote_new(request: Request):
     for pn in partnumbers:
         pn_dict = dict(pn)
         avail = {}
+        in_transit = {}
         for yard in yards_list:
             col_name = yard.lower().replace(" ", "_")
-            avail[yard] = pn_dict.get(col_name, 0)
-            if col_name in pn_dict:
-                del pn_dict[col_name]
+            avail[yard] = pn_dict.get(f"{col_name}_in_stock", 0)
+            in_transit[yard] = pn_dict.get(f"{col_name}_in_transit", 0)
+            for key in [f"{col_name}_in_stock", f"{col_name}_in_transit"]:
+                if key in pn_dict:
+                    del pn_dict[key]
         pn_dict["availability"] = avail
+        pn_dict["in_transit"] = in_transit
         partnumbers_json.append(pn_dict)
     close_db()
 
@@ -173,10 +178,19 @@ async def quote_create(
         mmddyyyy = datetime.strptime(quote_date, "%Y-%m-%d").strftime("%m%d%Y")
         qnum = next_doc_number(db, "Q", mmddyyyy)
 
-        db.execute("""ALTER TABLE Quote ADD COLUMN status TEXT DEFAULT 'DRAFT'""")
+        # Add status column if it doesn't exist
+        columns = [r[1] for r in db.execute("PRAGMA table_info(Quote)").fetchall()]
+        if "status" not in columns:
+            db.execute("""ALTER TABLE Quote ADD COLUMN status TEXT DEFAULT 'DRAFT'""")
+        
+        # Add status column to Quote_Items if it doesn't exist
+        item_columns = [r[1] for r in db.execute("PRAGMA table_info(Quote_Items)").fetchall()]
+        if "status" not in item_columns:
+            db.execute("""ALTER TABLE Quote_Items ADD COLUMN status TEXT DEFAULT 'In Stock'""")
+            db.commit()
 
         db.execute(
-            """INSERT INTO Quote (quote_number, quote_type, quote_date, quote_expiration_date, payment_term, ship_to, ship_from, sales_tax_rate, rental_days, discount, shipping_cost, client_id, status, created_by, created_at, modified_by, modified_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            """INSERT INTO Quote (quote_number, quote_type, quote_date, quote_expiration_date, payment_term, ship_to, ship_from, sales_tax_rate, rental_days, discount, shipping_cost, client_id, contact_person, status, created_by, created_at, modified_by, modified_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 qnum,
                 quote_type,
@@ -190,6 +204,7 @@ async def quote_create(
                 float(discount or 0) if discount else 0,
                 float(shipping_cost or 0) if shipping_cost else 0,
                 int(client_id) if client_id and client_id.isdigit() else None,
+                contact_person or None,
                 "DRAFT",
                 user,
                 now,
@@ -214,8 +229,8 @@ async def quote_create(
             except (ValueError, TypeError):
                 qty = 1
             db.execute(
-                """INSERT INTO Quote_Items (quote_number,parts_number,quantity,quoted_price,lead_time, yard)
-                          VALUES (?,?,?,?,?,?)""",
+                """INSERT INTO Quote_Items (quote_number,parts_number,quantity,quoted_price,lead_time, yard, status)
+                          VALUES (?,?,?,?,?,?,?)""",
                 (
                     qnum,
                     it["parts_number"],
@@ -223,6 +238,7 @@ async def quote_create(
                     price,
                     it.get("lead_time", ""),
                     it.get("yard", ""),
+                    it.get("status", "In Stock"),
                 ),
             )
         db.commit()
@@ -238,7 +254,7 @@ async def quote_create(
 
 
 @router.get("/{quote_number}", response_class=HTMLResponse)
-def quote_edit(request: Request, quote_number: str):
+def quote_edit(request: Request, quote_number: str, success: str = ""):
     db = get_db()
 
     quote = dict(
@@ -296,30 +312,53 @@ def quote_edit(request: Request, quote_number: str):
 
     # Get availability by parts_number and location from Product table
     availability = {}
+    in_transit = {}
     for pn in partnumbers:
         pn_name = pn["parts_number"]
         availability[pn_name] = {}
+        in_transit[pn_name] = {}
         for loc in locations:
             loc_name = loc["name"]
-            count = db.execute(
+            in_stock_count = db.execute(
                 """
                 SELECT COUNT(*) as cnt FROM Product 
-                WHERE parts_number=? AND location=? AND status='Available'
+                WHERE parts_number=? AND location=? AND status='In Stock'
             """,
                 (pn_name, loc_name),
             ).fetchone()["cnt"]
-            availability[pn_name][loc_name] = count
+            transit_count = db.execute(
+                """
+                SELECT COUNT(*) as cnt FROM Product 
+                WHERE parts_number=? AND location=? AND status='Inbound in Transit'
+            """,
+                (pn_name, loc_name),
+            ).fetchone()["cnt"]
+            availability[pn_name][loc_name] = in_stock_count
+            in_transit[pn_name][loc_name] = transit_count
 
     items_query = db.execute(
         "SELECT * FROM Quote_Items WHERE quote_number=?", (quote_number,)
     ).fetchall()
     items = [dict(r) for r in items_query]
 
+    # Group items by parts_number
+    grouped_items = {}
+    for item in items:
+        pn = item.get("parts_number")
+        if pn:
+            if pn not in grouped_items:
+                grouped_items[pn] = []
+            grouped_items[pn].append(item)
+    
+    # Convert to list of groups for template
+    grouped_items_list = [{"parts_number": pn, "items": item_list} for pn, item_list in grouped_items.items()] if grouped_items else []
+
     # Add availability to partnumbers_json
     partnumbers_json = []
     for pn in partnumbers:
         pn_dict = dict(pn)
         pn_dict["availability"] = availability.get(pn["parts_number"], {})
+        pn_dict["in_transit"] = in_transit.get(pn["parts_number"], {})
         partnumbers_json.append(pn_dict)
 
     close_db()
@@ -349,9 +388,11 @@ def quote_edit(request: Request, quote_number: str):
             "locations": [{"name": y} for y in yards_list],
             "payment_terms": PAYMENT_TERMS,
             "items": items,
+            "grouped_items": grouped_items_list,
             "subtotal": subtotal,
             "tax_amount": tax_amount,
             "total": total,
+            "success": success,
         },
     )
 
@@ -422,8 +463,8 @@ async def quote_edit_submit(
             except (ValueError, TypeError):
                 qty = 1
             db.execute(
-                """INSERT INTO Quote_Items (quote_number,parts_number,quantity,quoted_price,lead_time, yard)
-                          VALUES (?,?,?,?,?,?)""",
+                """INSERT INTO Quote_Items (quote_number,parts_number,quantity,quoted_price,lead_time, yard, status)
+                          VALUES (?,?,?,?,?,?,?)""",
                 (
                     quote_number,
                     it["parts_number"],
@@ -431,18 +472,23 @@ async def quote_edit_submit(
                     price,
                     it.get("lead_time", ""),
                     it.get("yard", ""),
+                    it.get("status", "In Stock"),
                 ),
             )
 
         db.commit()
         log_info(f"Updated Quote: {quote_number} by {user}")
         close_db()
-        return RedirectResponse(f"/quotes/{quote_number}", status_code=303)
+        return RedirectResponse(f"/quotes/{quote_number}?success=1", status_code=303)
     except Exception as e:
         log_error(f"Failed to update quote {quote_number}: {e}")
         import traceback
 
         traceback.print_exc()
+        try:
+            close_db()
+        except:
+            pass
         return HTMLResponse(f"Error: {e}", status_code=400)
 
 

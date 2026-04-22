@@ -1,0 +1,425 @@
+{% extends "base.html" %}
+{% block title %}{{ quote.quote_number }} — Edit Quote — SRT{% endblock %}
+{% block page_title %}Edit Quote{% endblock %}
+{% block page_sub %}{{ quote.quote_number }}{% endblock %}
+{% set active = "quotes" %}
+
+{% block topbar_actions %}
+<a href="/quotes/{{ quote.quote_number }}" class="btn">← Back to Quote</a>
+{% if quote.status == "DRAFT" %}
+<form method="post" action="/quotes/{{ quote.quote_number }}/status" style="display:inline;">
+  <input type="hidden" name="new_status" value="SENT">
+  <button type="submit" class="btn">Mark as Sent</button>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<form method="post" action="/quotes/{{ quote.quote_number }}/edit" id="quote-form">
+  {% if success %}
+  <div style="background:#4caf50;color:#fff;padding:12px;border-radius:4px;margin-bottom:16px;">
+    Changes saved successfully!
+  </div>
+  {% endif %}
+
+  <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+    <div class="form-group">
+      <label>Quote Type *</label>
+      <div style="display:flex;gap:16px;">
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+          <input type="radio" name="quote_type" value="RENTAL" {% if quote.quote_type == 'RENTAL' %}checked{% endif %}> Rental
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+          <input type="radio" name="quote_type" value="SALE" {% if quote.quote_type == 'SALE' %}checked{% endif %}> Sale
+        </label>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="client_company">Client Company *</label>
+      <select id="client_company" name="client_company" required onchange="document.getElementById('contact_person').value=''">
+        <option value="">— Select Company —</option>
+        {% for company, contacts in clients_by_company.items() %}
+        <option value="{{ company }}" {% if company == selected_company %}selected{% endif %}>{{ company }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="contact_person">Contact Person</label>
+      <select id="contact_person" name="contact_person">
+        <option value="">— Select Contact —</option>
+        {% for c in contacts_for_selected %}
+        <option value="{{ c.name }}" {% if c.name == quote.contact_person %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+    <div class="form-group">
+      <label for="quote_date">Quote Date *</label>
+      <input type="date" id="quote_date" name="quote_date" value="{{ quote.quote_date }}" required>
+    </div>
+
+    <div class="form-group">
+      <label for="quote_expiration_date">Expiration Date</label>
+      <input type="date" id="quote_expiration_date" name="quote_expiration_date" value="{{ quote.quote_expiration_date or '' }}">
+    </div>
+
+    <div class="form-group">
+      <label for="payment_term">Payment Terms</label>
+      <select id="payment_term" name="payment_term">
+        <option value="">— Select —</option>
+        {% for t in payment_terms %}
+        <option value="{{ t }}" {% if t == quote.payment_term %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+    <div class="form-group">
+      <label for="ship_from">Ship From</label>
+      <select id="ship_from" name="ship_from">
+        <option value="">— Select —</option>
+        {% for loc in locations %}
+        <option value="{{ loc.name }}" {% if loc.name == quote.ship_from %}selected{% endif %}>{{ loc.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="ship_to">Ship To</label>
+      <input type="text" id="ship_to" name="ship_to" value="{{ quote.ship_to or '' }}">
+    </div>
+
+    <div class="form-group">
+      <label for="sales_tax_rate">Sales Tax (%)</label>
+      <input type="number" id="sales_tax_rate" name="sales_tax_rate" value="{{ ((quote.sales_tax_rate|default(0.0825)) * 100)|round(2) }}" step="0.01" min="0">
+    </div>
+  </div>
+
+  <input type="hidden" name="client_id" id="client_id_input" value="{{ quote.client_id or '' }}">
+  <input type="hidden" name="items_json" id="items_json">
+
+  <h3 style="margin-top:24px;margin-bottom:12px;">Line Items</h3>
+  <div id="line-items">
+    <div class="line-item-row" style="background:#222;border-radius:4px;padding:12px;margin-bottom:12px;">
+      <div style="display:grid;grid-template-columns:2fr 40px;gap:8px;align-items:end;margin-bottom:12px;">
+        <div>
+          <label>Catalog Item *</label>
+          <select class="parts-select" name="parts_number">
+            <option value="">— Select —</option>
+          </select>
+        </div>
+      </div>
+      <div class="yard-rows"></div>
+    </div>
+  </div>
+  <button type="button" class="btn btn-sm" onclick="addLineItem()" style="margin-bottom:16px;">+ Add Item</button>
+
+  <h3 style="margin-top:24px;margin-bottom:12px;">Totals</h3>
+  <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+    <div class="form-group" id="rental-days-group" style="display:{% if quote.quote_type == 'RENTAL' %}block{% else %}none{% endif %};">
+      <label for="rental_days">Rental Days</label>
+      <input type="number" id="rental_days" name="rental_days" value="{{ quote.rental_days or 1 }}" min="1">
+    </div>
+
+    <div class="form-group">
+      <label for="discount">Discount ($)</label>
+      <input type="number" id="discount" name="discount" value="{{ quote.discount or 0 }}" step="0.01" min="0">
+    </div>
+
+    <div class="form-group">
+      <label for="shipping_cost">Shipping Cost ($)</label>
+      <input type="number" id="shipping_cost" name="shipping_cost" value="{{ quote.shipping_cost or 0 }}" step="0.01" min="0">
+    </div>
+  </div>
+
+  <div style="background:#222;padding:16px;border-radius:4px;margin-top:16px;">
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+      <span>Subtotal:</span>
+      <span id="subtotal">${{ "%.2f"|format(subtotal) }}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+      <span>Tax:</span>
+      <span id="tax-amount">${{ "%.2f"|format(tax_amount) }}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+      <span>Discount:</span>
+      <span id="discount-display">-${{ "%.2f"|format(quote.discount or 0) }}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+      <span>Shipping:</span>
+      <span id="shipping-display">${{ "%.2f"|format(quote.shipping_cost or 0) }}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:bold;border-top:1px solid #444;padding-top:8px;margin-top:8px;">
+      <span>Total:</span>
+      <span id="grand-total">${{ "%.2f"|format(total) }}</span>
+    </div>
+  </div>
+
+  <div class="form-actions" style="margin-top:24px;">
+    <a href="/quotes/" class="btn">Cancel</a>
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+const clientsByCompany = {{ clients_by_company_json|tojson }};
+const partnumbers = {{ partnumbers_json|tojson }};
+const yards = {{ yards_json|tojson }};
+const quoteType = "{{ quote.quote_type|default('SALE') }}";
+
+document.getElementById('client_company').addEventListener('change', function() {
+  const company = this.value;
+  const contactSelect = document.getElementById('contact_person');
+  const clientIdInput = document.getElementById('client_id_input');
+  
+  contactSelect.innerHTML = '<option value="">— Select Contact —</option>';
+  clientIdInput.value = '';
+  document.getElementById('ship_to').value = '';
+  
+  if (company && clientsByCompany[company]) {
+    clientsByCompany[company].forEach(client => {
+      const opt = document.createElement('option');
+      opt.value = client.name;
+      opt.textContent = client.name;
+      opt.dataset.clientId = client.client_id;
+      opt.dataset.siteAddress = client.site_address || '';
+      contactSelect.appendChild(opt);
+    });
+  }
+});
+
+document.getElementById('contact_person').addEventListener('change', function() {
+  const option = this.options[this.selectedIndex];
+  document.getElementById('client_id_input').value = option.dataset.clientId || '';
+  document.getElementById('ship_to').value = option.dataset.siteAddress || '';
+});
+
+document.querySelectorAll('input[name="quote_type"]').forEach(radio => {
+  radio.addEventListener('change', function() {
+    document.getElementById('rental-days-group').style.display = this.value === 'RENTAL' ? 'block' : 'none';
+    updatePrices();
+    calculateTotal();
+  });
+});
+
+function addLineItem() {
+  const container = document.getElementById('line-items');
+  const template = document.querySelector('.line-item-row').cloneNode(true);
+  template.querySelector('.parts-select').value = '';
+  template.querySelectorAll('.yard-qty').forEach(q => q.value = 0);
+  template.querySelector('.yard-rows').innerHTML = '';
+  container.appendChild(template);
+  attachRowListeners(template);
+}
+
+function removeRow(btn) {
+  const rows = document.querySelectorAll('.line-item-row');
+  if (rows.length > 1) {
+    btn.closest('.line-item-row').remove();
+    calculateTotal();
+  }
+}
+
+function isRental() {
+  return quoteType === 'RENTAL';
+}
+
+function calculateTotal() {
+  let subtotal = 0;
+  const rental = isRental();
+  const rentalDays = parseInt(document.getElementById('rental_days').value) || 0;
+  const taxRate = parseFloat(document.getElementById('sales_tax_rate').value) || 0;
+  const discount = parseFloat(document.getElementById('discount').value) || 0;
+  const shipping = parseFloat(document.getElementById('shipping_cost').value) || 0;
+  
+  document.querySelectorAll('.line-item-row').forEach(row => {
+    const partsNumber = row.querySelector('.parts-select').value;
+    if (!partsNumber) return;
+    
+    row.querySelectorAll('.yard-row').forEach(yardRow => {
+      const qty = parseInt(yardRow.querySelector('.yard-qty').value) || 0;
+      const price = parseFloat(yardRow.querySelector('.yard-qty').dataset.unitprice) || 0;
+      let itemTotal = qty * price;
+      if (rental && rentalDays > 0) {
+        itemTotal = itemTotal * rentalDays;
+      }
+      subtotal += itemTotal;
+    });
+  });
+  
+  const taxAmount = (subtotal - discount) * (taxRate / 100);
+  const total = subtotal - discount + taxAmount + shipping;
+  
+  document.getElementById('subtotal').textContent = '$' + subtotal.toFixed(2);
+  document.getElementById('tax-amount').textContent = '$' + taxAmount.toFixed(2);
+  document.getElementById('discount-display').textContent = '-$' + discount.toFixed(2);
+  document.getElementById('shipping-display').textContent = '$' + shipping.toFixed(2);
+  document.getElementById('grand-total').textContent = '$' + total.toFixed(2);
+}
+
+function updatePrices() {
+  const rental = isRental();
+  document.querySelectorAll('.yard-qty').forEach(qty => {
+    const price = rental ? (qty.dataset.rentalprice || 0) : (qty.dataset.unitprice || 0);
+    qty.dataset.unitprice = price;
+  });
+}
+
+function attachRowListeners(row) {
+  const select = row.querySelector('.parts-select');
+  const price = select.options[select.selectedIndex];
+  
+  const partsOptions = partnumbers.map(p => 
+    '<option value="' + p.parts_number + '" data-resale="' + (p.resale_price || 0) + '" data-rental="' + (p.rental_price || 0) + '">' + p.parts_number + '</option>'
+  ).join('');
+  select.innerHTML = '<option value="">— Select —</option>' + partsOptions;
+  
+  select.addEventListener('change', function() {
+    updateYardRows(row, this.value);
+    updatePrices();
+    calculateTotal();
+  });
+  
+  row.querySelectorAll('.yard-qty').forEach(qty => {
+    qty.addEventListener('input', calculateTotal);
+  });
+}
+
+function updateYardRows(row, partsNumber) {
+  const yardRowsContainer = row.querySelector('.yard-rows');
+  yardRowsContainer.innerHTML = '';
+  
+  if (!partsNumber) return;
+  
+  const pn = partnumbers.find(p => p.parts_number === partsNumber);
+  if (!pn) return;
+  
+  const availData = pn.availability || {};
+  const inTransitData = pn.in_transit || {};
+  
+  yards.forEach(yard => {
+    const inStock = availData[yard] || 0;
+    const inTransit = inTransitData[yard] || 0;
+    
+    if (inStock > 0) {
+      const div = document.createElement('div');
+      div.className = 'yard-row';
+      div.style = 'display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:8px;padding:8px;background:#2a2a2a;border-radius:4px;';
+      div.innerHTML = 
+        '<div><label>Yard</label><div class="yard-name" style="padding:8px;font-size:13px;">' + yard + '</div></div>' +
+        '<div><label>In Stock</label><div class="yard-avail" style="padding:8px;font-size:13px;">' + inStock + '</div></div>' +
+        '<div><label>Qty</label><input type="number" class="yard-qty" name="quantity" min="0" value="0" style="width:100%;padding:8px;" max="' + inStock + '"></div>' +
+        '<div><label>Lead Time (days)</label><input type="number" class="yard-lead" name="lead_time" min="0" step="1" style="width:100%;padding:8px;"></div>';
+      const qtyInput = div.querySelector('.yard-qty');
+      qtyInput.dataset.unitprice = pn.resale_price || 0;
+      qtyInput.dataset.rentalprice = pn.rental_price || 0;
+      qtyInput.dataset.yard = yard;
+      qtyInput.dataset.maxavail = inStock;
+      qtyInput.dataset.status = 'In Stock';
+      qtyInput.addEventListener('input', function() {
+        if (parseInt(this.value) > parseInt(this.max)) this.value = this.max;
+        calculateTotal();
+      });
+      yardRowsContainer.appendChild(div);
+    }
+    
+    if (inTransit > 0) {
+      const div = document.createElement('div');
+      div.className = 'yard-row';
+      div.style = 'display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:8px;padding:8px;background:#2a2a2a;border-radius:4px;';
+      div.innerHTML = 
+        '<div><label>Yard</label><div class="yard-name" style="padding:8px;font-size:13px;">' + yard + '</div></div>' +
+        '<div><label>In Transit</label><div class="yard-avail" style="padding:8px;font-size:13px;">' + inTransit + '</div></div>' +
+        '<div><label>Qty</label><input type="number" class="yard-qty" name="quantity" min="0" value="0" style="width:100%;padding:8px;" max="' + inTransit + '"></div>' +
+        '<div><label>Lead Time (days)</label><input type="number" class="yard-lead" name="lead_time" min="0" step="1" style="width:100%;padding:8px;"></div>';
+      const qtyInput = div.querySelector('.yard-qty');
+      qtyInput.dataset.unitprice = pn.resale_price || 0;
+      qtyInput.dataset.rentalprice = pn.rental_price || 0;
+      qtyInput.dataset.yard = yard;
+      qtyInput.dataset.maxavail = inTransit;
+      qtyInput.dataset.status = 'Inbound in Transit';
+      qtyInput.addEventListener('input', function() {
+        if (parseInt(this.value) > parseInt(this.max)) this.value = this.max;
+        calculateTotal();
+      });
+      yardRowsContainer.appendChild(div);
+    }
+  });
+}
+
+document.getElementById('quote-form').addEventListener('submit', function(e) {
+  const items = [];
+  let hasInboundTransit = false;
+  
+  document.querySelectorAll('.line-item-row').forEach(row => {
+    const partsSelect = row.querySelector('.parts-select');
+    const partsNumber = partsSelect ? partsSelect.value : '';
+    if (!partsNumber) return;
+    
+    row.querySelectorAll('.yard-row').forEach(yardRow => {
+      const qtyInput = yardRow.querySelector('.yard-qty');
+      const qty = qtyInput ? (parseInt(qtyInput.value) || 0) : 0;
+      const price = qtyInput ? (parseFloat(qtyInput.dataset.unitprice) || 0) : 0;
+      const leadInput = yardRow.querySelector('.yard-lead');
+      const leadTime = leadInput ? (leadInput.value || '') : '';
+      const yard = qtyInput ? (qtyInput.dataset.yard || '') : '';
+      const status = qtyInput ? (qtyInput.dataset.status || 'In Stock') : 'In Stock';
+      
+      if (status === 'Inbound in Transit' && qty > 0 && !leadTime) {
+        hasInboundTransit = true;
+        yardRow.querySelector('.yard-lead').style.borderColor = '#f44336';
+      } else {
+        yardRow.querySelector('.yard-lead').style.borderColor = '';
+      }
+      
+      if (qty > 0) {
+        items.push({ 
+          parts_number: partsNumber, 
+          quantity: qty, 
+          quoted_price: price,
+          yard: yard,
+          lead_time: leadTime,
+          status: status
+        });
+      }
+    });
+  });
+  
+  document.getElementById('items_json').value = JSON.stringify(items);
+  
+  if (items.length === 0) {
+    e.preventDefault();
+    alert('Please add at least one item');
+  }
+  
+  if (hasInboundTransit) {
+    e.preventDefault();
+    const form = document.getElementById('quote-form');
+    const errorDiv = document.getElementById('form-error');
+    if (!errorDiv) {
+      const err = document.createElement('div');
+      err.id = 'form-error';
+      err.style = 'background:#f44336;color:#fff;padding:12px;border-radius:4px;margin-bottom:16px;';
+      err.textContent = 'Lead Time is required for Inbound in Transit products';
+      form.insertBefore(err, form.firstChild);
+    }
+  }
+});
+
+['discount', 'shipping_cost', 'rental_days', 'sales_tax_rate'].forEach(id => {
+  document.getElementById(id).addEventListener('input', calculateTotal);
+});
+
+updatePrices();
+calculateTotal();
+});
+</script>
+{% endblock %}
