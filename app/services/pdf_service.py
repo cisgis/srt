@@ -685,13 +685,13 @@ def build_invoice_pdf(
         175,
         64,
         "Bill To",
-        [client.get("customer_name", ""), client.get("billing_address", "")],
+        [client.get("name", ""), client.get("company", ""), client.get("billing_address", "")],
     )
 
     # ── Ship From (left) + Ship To (right) ──────────────────
     ship_lines = [
-        client.get("customer_name", ""),
-        client.get("well_address", "") or client.get("billing_address", ""),
+        client.get("name", ""),
+        client.get("site_address", "") or client.get("billing_address", ""),
     ]
 
     _draw_box(c, 27, 550, 60, 34, "Ship From", [pl.get("ship_from", "")])

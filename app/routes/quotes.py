@@ -17,15 +17,27 @@ PAYMENT_TERMS = ["COD", "Net 7", "Net 14", "Net 21", "Net 30", "Net 60"]
 
 # Cached browser for PDF generation
 _pdf_browser = None
-_pdf_browser_context = None
+_pdf_playwright = None
 
 
 async def get_pdf_browser():
+    global _pdf_browser, _pdf_playwright
     from playwright.async_api import async_playwright
 
-    p = await async_playwright().start()
-    browser = await p.chromium.launch()
-    return browser
+    if _pdf_browser is None or not _pdf_browser.is_connected():
+        _pdf_playwright = await async_playwright().start()
+        _pdf_browser = await _pdf_playwright.chromium.launch()
+    return _pdf_browser
+
+
+async def close_pdf_browser():
+    global _pdf_browser, _pdf_playwright
+    if _pdf_browser:
+        await _pdf_browser.close()
+        _pdf_browser = None
+    if _pdf_playwright:
+        await _pdf_playwright.stop()
+        _pdf_playwright = None
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -352,6 +364,8 @@ def quote_edit(request: Request, quote_number: str, success: str = ""):
     
     # Convert to list of groups for template
     grouped_items_list = [{"parts_number": pn, "items": item_list} for pn, item_list in grouped_items.items()] if grouped_items else []
+    
+    print(f"DEBUG: items={len(items)}, grouped={len(grouped_items_list)}")
 
     # Add availability to partnumbers_json
     partnumbers_json = []
@@ -536,6 +550,7 @@ def quote_create_packing_slip(request: Request, quote_number: str):
                 "parts_number": i["parts_number"],
                 "quantity": i["quantity"],
                 "yard": i.get("yard", ""),
+                "status": i.get("status", "In Stock"),
             }
             for i in items_list
         ]
@@ -627,15 +642,15 @@ def quote_pdf(quote_number: str):
             context = await browser.new_context()
             page = await context.new_page()
             await page.set_content(html_content)
-            await page.wait_for_load_state("networkidle")
+            await page.wait_for_load_state("domcontentloaded")
             pdf = await page.pdf(
                 format="Letter",
                 print_background=True,
                 display_header_footer=False,
+                margin={"top": "0.5in", "bottom": "0.5in", "left": "0.5in", "right": "0.5in"},
             )
             await page.close()
             await context.close()
-            await browser.close()
             return pdf
 
         pdf_content = asyncio.run(generate_pdf())

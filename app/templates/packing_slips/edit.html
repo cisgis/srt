@@ -6,16 +6,29 @@
 
 {% block topbar_actions %}
 <a href="/packing-slips/" class="btn">← Back</a>
+{% if pl %}
+<a href="/packing-slips/{{ pl.packing_slip_number }}/pdf" class="btn" target="_blank">Download PDF</a>
+{% if pl.status == 'SHIPPED' %}
+<a href="/packing-slips/{{ pl.packing_slip_number }}/create-invoice" class="btn btn-primary">Create Invoice</a>
+{% else %}
+<a href="/packing-slips/{{ pl.packing_slip_number }}/mark-shipped" class="btn btn-primary">Mark as Shipped</a>
+{% endif %}
+{% endif %}
 {% endblock %}
 
 {% block content %}
+{% if pl and (pl.status == 'SHIPPED') %}
+<div class="card" style="background: #cce5ff; border-left: 4px solid #004085; margin-bottom: 16px;">
+  <div style="font-weight: bold; color: #004085;">✓ This packing slip has been shipped. It is now read-only.</div>
+</div>
+{% endif %}
 {% if success %}
 <div class="card" style="background: #d4edda; border-left: 4px solid #28a745; margin-bottom: 16px;">
   <div style="font-weight: bold; color: #28a745;">✓ The packing slip has been successfully saved.</div>
 </div>
 {% endif %}
 
-<form method="post" action="{% if pl %}/packing-slips/{{ pl.packing_slip_number }}/edit{% else %}/packing-slips/new{% endif %}" id="pl-form">
+<form method="post" action="{% if pl %}/packing-slips/{{ pl.packing_slip_number }}/edit{% else %}/packing-slips/new{% endif %}" id="pl-form" {% if pl and (pl.status == 'SHIPPED') %}style="pointer-events: none; opacity: 0.7;"{% endif %}>
   <input type="hidden" name="quote_number" value="{{ pl.quote_number or quote_number or '' }}">
   <input type="hidden" name="client_id" value="{{ pl.client_id or client_id or '' }}">
   <input type="hidden" name="items_json" id="items_json">
@@ -67,47 +80,45 @@
     {% set prods_map = available_products.get(pn, {}) %}
     
     {% set prods_keys = prods_map.keys()|list %}
-    {% set first_yard = prods_keys[0] if prods_keys else '' %}
     
     <div class="card" id="item-row-{{ pn }}" style="margin-bottom: 16px; border: 1px solid #444;">
       <div class="card-title">{{ pn }}</div>
       
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px;">
         <div>
-          <label>Yard</label>
-          <div style="padding: 8px; font-weight: bold;">{{ first_yard }}</div>
-        </div>
-        <div>
           <label>Quantity Required</label>
           <div style="padding: 8px; font-weight: bold;">{{ req_qty }}</div>
         </div>
       </div>
-      
+
       <label>Select Serial Numbers *</label>
-      <div class="sn-selection" data-parts="{{ pn }}" data-yard="{{ first_yard }}" data-qty="{{ req_qty }}">
-        <div style="max-height: 200px; overflow-y: auto; border: 1px solid #444; border-radius: 4px;">
+      <div class="sn-selection" data-parts="{{ pn }}" data-qty="{{ req_qty }}">
+        <div style="max-height: 250px; overflow-y: auto; border: 1px solid #444; border-radius: 4px;">
+          {% for status_name, status_prods in prods_map.items() %}
+          <div style="background: {% if status_name == 'In Stock' %}#2a5a2a{% elif status_name == 'Inbound in Transit' %}#5a4a2a{% else %}#3a3a5a{% endif %}; padding: 6px 8px; font-weight: bold;">{{ status_name }} ({{ status_prods|length }})</div>
           <table style="width: 100%; font-size: 13px;">
-            <thead style="background: #333;">
+            <thead style="background: #444;">
               <tr>
-                <th style="padding: 8px; text-align: left;">{% if is_edit %}<input type="checkbox" class="sn-check-all"> {% endif %}Select</th>
+                <th style="padding: 8px; text-align: left;"><input type="checkbox" class="sn-check-all"> Select</th>
                 <th style="padding: 8px; text-align: left;">Serial Number</th>
+                <th style="padding: 8px; text-align: left;">Location</th>
                 <th style="padding: 8px; text-align: left;">Status</th>
               </tr>
             </thead>
             <tbody class="sn-list">
-              {% for yard_name, yard_prods in prods_map.items() %}
-                {% for prod in yard_prods %}
+              {% for prod in status_prods %}
               <tr>
                 <td style="padding: 6px 8px;">
                   <input type="checkbox" name="sn_{{ pn }}" value="{{ prod.serial_number }}" class="sn-checkbox" {% if prod.serial_number in part_items_sns %}checked{% endif %}>
                 </td>
                 <td style="padding: 6px 8px;">{{ prod.serial_number }}</td>
-                <td style="padding: 6px 8px; color: #888;">{{ prod.status }}</td>
+                <td style="padding: 6px 8px; color: #888;">{{ prod.location }}</td>
+                <td style="padding: 6px 8px; color: {% if status_name == 'In Stock' %}#4caf50{% else %}#ff9800{% endif %};">{{ status_name }}</td>
               </tr>
-                {% endfor %}
               {% endfor %}
             </tbody>
           </table>
+          {% endfor %}
         </div>
         <div style="margin-top: 8px; color: #888;">
           Selected: <span class="sn-count">{{ req_qty }}</span> / {{ req_qty }}
@@ -139,28 +150,30 @@
       <label>Select Serial Numbers *</label>
       <div class="sn-selection" data-parts="{{ item.parts_number }}" data-yard="{{ item.yard or '' }}" data-qty="{{ item.quantity }}">
         <div style="max-height: 200px; overflow-y: auto; border: 1px solid #444; border-radius: 4px;">
+          {% set prods_by_yard = available_products.get(item.parts_number, {}) %}
+          {% for yard_name, yard_prods in prods_by_yard.items() %}
+          <div style="background: #2a5a2a; padding: 6px 8px; font-weight: bold;">{{ yard_name or 'Unknown Yard' }} ({{ yard_prods|length }})</div>
           <table style="width: 100%; font-size: 13px;">
-            <thead style="background: #333;">
+            <thead style="background: #444;">
               <tr>
-                <th style="padding: 8px; text-align: left;"><input type="checkbox" class="sn-check-all"> Select All</th>
+                <th style="padding: 8px; text-align: left;"><input type="checkbox" class="sn-check-all"> Select</th>
                 <th style="padding: 8px; text-align: left;">Serial Number</th>
                 <th style="padding: 8px; text-align: left;">Status</th>
               </tr>
             </thead>
             <tbody class="sn-list">
-              {% for p in available_products.get(item.parts_number, []) %}
-              {% if not item.yard or p.location == item.yard %}
+              {% for p in yard_prods %}
               <tr>
                 <td style="padding: 6px 8px;">
                   <input type="checkbox" name="sn_{{ item.parts_number }}" value="{{ p.serial_number }}" class="sn-checkbox" {% if pl_items and p.serial_number in pl_items|map(attribute='serial_number') %}checked{% endif %}>
                 </td>
                 <td style="padding: 6px 8px;">{{ p.serial_number }}</td>
-                <td style="padding: 6px 8px; color: #888;">{{ p.status }}</td>
+                <td style="padding: 6px 8px; color: {% if p.status == 'In Stock' %}#4caf50{% else %}#ff9800{% endif %};">{{ p.status }}</td>
               </tr>
-              {% endif %}
               {% endfor %}
             </tbody>
           </table>
+          {% endfor %}
         </div>
         <div style="margin-top: 8px; color: #888;">
           Selected: <span class="sn-count">0</span> / {{ item.quantity }}

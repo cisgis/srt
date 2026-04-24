@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Invoice {{ invoice.invoice_number }}</title>
+  <style>
+    @page {
+      size: letter;
+      margin: 0.5in;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 13px;
+      color: #333;
+      margin: 0;
+      padding: 30px 50px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 25px;
+      border-bottom: 3px solid #1a5f7a;
+      padding-bottom: 15px;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .logo img {
+      width: 150px;
+      height: 150px;
+      object-fit: contain;
+    }
+    .logo-text {
+      font-size: 22px;
+      font-weight: bold;
+      color: #1a5f7a;
+      letter-spacing: 1px;
+    }
+    .company-info {
+      text-align: right;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #555;
+      padding-top: 20px;
+      white-space: nowrap;
+    }
+    .doc-info {
+      margin-bottom: 20px;
+    }
+    .inv-type {
+      font-size: 32px;
+      font-weight: bold;
+      color: #1a5f7a;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin: 0 0 15px 0;
+    }
+    .inv-number {
+      font-size: 18px;
+      color: #333;
+      margin-bottom: 5px;
+    }
+    .inv-dates {
+      font-size: 12px;
+      color: #666;
+    }
+    .info-grid {
+      display: table;
+      width: 100%;
+      margin-bottom: 25px;
+    }
+    .info-row {
+      display: table-row;
+    }
+    .info-section {
+      display: table-cell;
+      width: 50%;
+      vertical-align: top;
+      padding: 15px;
+      background: #f8f8f8;
+      border-radius: 5px;
+    }
+    .info-label {
+      font-weight: bold;
+      color: #1a5f7a;
+      font-size: 12px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .info-value {
+      line-height: 1.6;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    th {
+      background: #1a5f7a;
+      color: white;
+      text-align: left;
+      padding: 12px 10px;
+      font-weight: bold;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+    td {
+      padding: 12px 10px;
+      border-bottom: 1px solid #ddd;
+      font-size: 13px;
+    }
+    tr:nth-child(even) {
+      background: #fafafa;
+    }
+    .text-right {
+      text-align: right;
+    }
+    .text-center {
+      text-align: center;
+    }
+    .totals {
+      margin-left: auto;
+      width: 300px;
+      background: #f8f8f8;
+      padding: 15px;
+      border-radius: 5px;
+    }
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 0;
+    }
+    .totals-row.total {
+      border-top: 2px solid #333;
+      font-weight: bold;
+      font-size: 16px;
+      margin-top: 10px;
+      padding-top: 10px;
+    }
+    .footer {
+      margin-top: 40px;
+      text-align: center;
+      font-size: 10px;
+      color: #888;
+      border-top: 1px solid #ddd;
+      padding-top: 15px;
+    }
+    .po-attachment {
+      background: #fff3cd;
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">
+      <img src="{{ logo_data }}" alt="SRT Logo">
+      <div class="logo-text">STEEL RIVER TECHNOLOGIES</div>
+    </div>
+    <div class="company-info">
+      <div><strong>Steel River Technologies</strong></div>
+      <div>8810 E CR-95, Midland, TX 79706</div>
+      <div>Phone: 432-618-0169</div>
+      <div>Email: accounting@steelriver-tech.com</div>
+    </div>
+  </div>
+
+  <div class="doc-info">
+    <h1 class="inv-type">INVOICE</h1>
+    <div class="inv-number"><strong>Invoice #:</strong> {{ invoice.invoice_number }}</div>
+    <div class="inv-dates">
+      <strong>Date:</strong> {{ invoice.invoice_date }} &nbsp;|&nbsp; 
+      <strong>Due:</strong> {{ invoice.payment_term or 'Due on Receipt' }}
+    </div>
+  </div>
+
+  {% if invoice.purchase_number %}
+  <div style="margin-bottom: 15px; font-size: 13px;">
+    <strong>PO Number:</strong> {{ invoice.purchase_number }}
+  </div>
+  {% endif %}
+
+  {% if invoice.po_attachment_path %}
+  <div class="po-attachment">
+    <strong>PO Attachment:</strong> <a href="{{ invoice.po_attachment_path }}">View Attached PO</a>
+  </div>
+  {% endif %}
+
+  <div class="info-grid">
+    <div class="info-row">
+      <div class="info-section">
+        <div class="info-label">Bill To:</div>
+        <div class="info-value">
+          <strong>{{ client.name or 'N/A' }}</strong><br>
+          {% if client.company %}{{ client.company }}<br>{% endif %}
+          {% if client.billing_address %}{{ client.billing_address }}{% endif %}
+        </div>
+      </div>
+      <div class="info-section">
+        <div class="info-label">Packing Slip:</div>
+        <div class="info-value">
+          {% if pl %}{{ pl.packing_slip_number }}{% else %}N/A{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Item #</th>
+        <th>Description</th>
+        <th class="text-center">Serial #</th>
+        <th class="text-center">Qty</th>
+        <th class="text-right">Unit Price</th>
+        <th class="text-right">Subtotal</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% set subtotal = namespace(value=0) %}
+      {% for item in items %}
+      <tr>
+        <td><strong>{{ item.parts_number }}</strong></td>
+        <td>{{ item.description or 'N/A' }}</td>
+        <td class="text-center">{{ item.serial_number or '-' }}</td>
+        <td class="text-center">1</td>
+        <td class="text-right">${{ "%.2f"|format(item.resale_price or 0) }}</td>
+        <td class="text-right">${{ "%.2f"|format(item.resale_price or 0) }}</td>
+      </tr>
+      {% set subtotal.value = subtotal.value + (item.resale_price or 0) %}
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div class="totals-row">
+      <span>Subtotal:</span>
+      <span>${{ "%.2f"|format(subtotal.value) }}</span>
+    </div>
+    {% if quote and (quote.discount_amount or quote.discount_percent) %}
+    <div class="totals-row">
+      <span>Discount{% if quote.discount_percent %} ({{ quote.discount_percent }}%){% endif %}:</span>
+      <span>-${{ "%.2f"|format(discount_amount) }}</span>
+    </div>
+    {% endif %}
+    {% if quote and quote.shipping_cost %}
+    <div class="totals-row">
+      <span>Shipping:</span>
+      <span>${{ "%.2f"|format(quote.shipping_cost) }}</span>
+    </div>
+    {% endif %}
+    {% if quote and quote.sales_tax_rate and quote.sales_tax_rate > 0 %}
+    <div class="totals-row">
+      <span>Tax ({{ "%.2f"|format(quote.sales_tax_rate * 100) }}%):</span>
+      <span>${{ "%.2f"|format(sales_tax) }}</span>
+    </div>
+    {% endif %}
+    <div class="totals-row total">
+      <span>Total:</span>
+      <span>${{ "%.2f"|format(grand_total) }}</span>
+    </div>
+  </div>
+
+  <div class="footer">
+    Steel River Technologies | www.steelriver-tech.com | 8810 E CR-95, Midland, TX 79706
+  </div>
+</body>
+</html>

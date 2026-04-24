@@ -239,6 +239,9 @@ CREATE TABLE IF NOT EXISTS Quote (
     ship_to               TEXT,
     ship_from             TEXT,
     sales_tax_rate        REAL DEFAULT 0,
+    discount_amount       REAL DEFAULT 0,
+    discount_percent      REAL DEFAULT 0,
+    shipping_cost         REAL DEFAULT 0,
     client_id             TEXT REFERENCES Clients(client_id),
     created_by TEXT,
     created_at TEXT,
@@ -264,14 +267,16 @@ CREATE TABLE IF NOT EXISTS Packing_Slip (
 CREATE TABLE IF NOT EXISTS Invoice (
     invoice_number      TEXT PRIMARY KEY,
     packing_slip_number TEXT REFERENCES Packing_Slip(packing_slip_number),
-    purchase_number     TEXT,
-    payment_term        TEXT,
-    invoice_date        TEXT,
-    client_id           TEXT REFERENCES Clients(client_id),
+    purchase_number   TEXT,
+    po_attachment_path TEXT,
+    payment_term      TEXT,
+    invoice_date      TEXT,
+    client_id         TEXT REFERENCES Clients(client_id),
     created_by TEXT,
     created_at TEXT,
     modified_by TEXT,
-    modified_at TEXT
+    modified_at TEXT,
+    status TEXT DEFAULT 'OPEN'
 );
 CREATE TABLE IF NOT EXISTS Transaction_External (
     transaction_ext_id  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -383,15 +388,18 @@ CREATE TABLE IF NOT EXISTS Packing_Slip (
     ship_from            TEXT,
     ship_to              TEXT,
     client_id            TEXT REFERENCES Clients(client_id),
-    tracking_number TEXT
+    tracking_number TEXT,
+    status TEXT DEFAULT 'DRAFT'
 );
 CREATE TABLE IF NOT EXISTS Invoice (
     invoice_number      TEXT PRIMARY KEY,
     packing_slip_number TEXT REFERENCES Packing_Slip(packing_slip_number),
-    purchase_number     TEXT,
-    payment_term        TEXT,
-    invoice_date        TEXT,
-    client_id           TEXT REFERENCES Clients(client_id)
+    purchase_number   TEXT,
+    po_attachment_path TEXT,
+    payment_term      TEXT,
+    invoice_date      TEXT,
+    client_id         TEXT REFERENCES Clients(client_id),
+    status TEXT DEFAULT 'OPEN'
 );
 CREATE TABLE IF NOT EXISTS Transaction_External (
     transaction_ext_id  INTEGER PRIMARY KEY AUTOINCREMENT,

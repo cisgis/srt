@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}New Packing Slip — SRT{% endblock %}
 {% block page_title %}New Packing Slip{% endblock %}
-{% block page_sub %}{% if quote_number %}From Quote {{ quote_number }}{% endif %}{% endblock %}
 {% set active = "packing_slips" %}
 
 {% block topbar_actions %}
@@ -10,46 +9,46 @@
 
 {% block content %}
 <form method="post" action="/packing-slips/new" id="pl-form">
-  <input type="hidden" name="quote_number" value="{{ quote_number or '' }}">
-  <input type="hidden" name="client_id" value="{{ client_id or '' }}">
-  <input type="hidden" name="items_json" id="items_json">
-  <input type="hidden" name="ship_from" value="Steel River Warehouse">
 
-  <div class="form-grid" style="grid-template-columns: 0.5fr 0.8fr 0.7fr 1fr 1.5fr;">
-    <div class="form-group">
-      <label>Date *</label>
-      <input type="date" name="packing_slip_date" value="{{ today }}" required>
-    </div>
-    <div class="form-group">
-      <label>P.O. #</label>
-      <input type="text" name="po_number" placeholder="PO">
-    </div>
-    <div class="form-group">
-      <label>Via</label>
-      <input type="text" name="ship_via" placeholder="Carrier">
-    </div>
-    <div class="form-group">
-      <label>Tracking #</label>
-      <input type="text" name="tracking_number" placeholder="#">
-    </div>
-    <div class="form-group">
-      <label>Ship To *</label>
-      <input type="text" name="ship_to" value="{{ ship_to or '' }}" required>
-    </div>
+<input type="hidden" name="items_json" id="items_json">
+<input type="hidden" name="quote_number" value="{{ quote_number }}">
+<input type="hidden" name="client_id" value="{{ client_id }}">
+<input type="hidden" name="ship_to" value="{{ ship_to }}">
+
+<div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+  <div class="form-group">
+    <label>Packing Slip Date *</label>
+    <input type="date" name="packing_slip_date" value="{{ today }}" required>
   </div>
+  <div class="form-group">
+    <label>PO Number</label>
+    <input type="text" name="po_number">
+  </div>
+  <div class="form-group">
+    <label>Ship From</label>
+    <select name="ship_from">
+      <option value="">— Select —</option>
+      {% for loc in locations %}
+      <option value="{{ loc.name }}">{{ loc.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</div>
 
+<div id="line-items">
 {% if quote_items %}
-  <h3 style="margin-top: 24px; margin-bottom: 12px;">Quote Items</h3>
-  <p style="color: #666; margin-bottom: 16px;">Select serial numbers for each item from the available inventory.</p>
-  
-  <div id="line-items">
   {% for item in quote_items %}
-    <div class="card" id="item-row-{{ item.parts_number }}" style="margin-bottom: 16px; border: 1px solid #444;">
-      <div class="card-title">{{ item.parts_number }}</div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px;">
+    {% set prods = available_products.get(item.parts_number, []) %}
+    <div class="card" style="margin-bottom: 16px; border: 1px solid #444;">
+      <div class="card-title">{{ item.parts_number }} - {{ item.status }}</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 12px;">
         <div>
           <label>Yard</label>
           <div style="padding: 8px;">{{ item.yard or '—' }}</div>
+        </div>
+        <div>
+          <label>Status</label>
+          <div style="padding: 8px; font-weight: bold; color: {% if item.status == 'In Stock' %}#4caf50{% else %}#ff9800{% endif %};">{{ item.status }}</div>
         </div>
         <div>
           <label>Quantity Required</label>
@@ -58,27 +57,25 @@
       </div>
       
       <label>Select Serial Numbers *</label>
-      <div class="sn-selection" data-parts="{{ item.parts_number }}" data-yard="{{ item.yard or '' }}" data-qty="{{ item.quantity }}">
+      <div class="sn-selection" data-parts="{{ item.parts_number }}" data-status="{{ item.status }}" data-qty="{{ item.quantity }}">
         <div style="max-height: 200px; overflow-y: auto; border: 1px solid #444; border-radius: 4px;">
           <table style="width: 100%; font-size: 13px;">
             <thead style="background: #333;">
               <tr>
-                <th style="padding: 8px; text-align: left;"><input type="checkbox" class="sn-check-all"> Select All</th>
+                <th style="padding: 8px; text-align: left;"><input type="checkbox" class="sn-check-all"> Select</th>
                 <th style="padding: 8px; text-align: left;">Serial Number</th>
                 <th style="padding: 8px; text-align: left;">Status</th>
               </tr>
             </thead>
             <tbody class="sn-list">
-              {% for p in available_products.get(item.parts_number, []) %}
-              {% if not item.yard or p.location == item.yard %}
+              {% for p in prods %}
               <tr>
                 <td style="padding: 6px 8px;">
-                  <input type="checkbox" name="sn_{{ item.parts_number }}" value="{{ p.serial_number }}" class="sn-checkbox">
+                  <input type="checkbox" name="sn_{{ item.parts_number }}_{{ p.serial_number }}" value="{{ p.serial_number }}" class="sn-checkbox">
                 </td>
                 <td style="padding: 6px 8px;">{{ p.serial_number }}</td>
-                <td style="padding: 6px 8px; color: #888;">{{ p.status }}</td>
+                <td style="padding: 6px 8px; color: {% if p.status == 'In Stock' %}#4caf50{% else %}#ff9800{% endif %};">{{ p.status }}</td>
               </tr>
-              {% endif %}
               {% endfor %}
             </tbody>
           </table>
@@ -90,12 +87,12 @@
       </div>
     </div>
   {% endfor %}
-  </div>
 {% else %}
   <div class="empty-state">
     <p>No items from quote. Please add items manually.</p>
   </div>
 {% endif %}
+</div>
 
   <div class="form-actions" style="margin-top: 24px;">
     <a href="/packing-slips/" class="btn">Cancel</a>
@@ -137,36 +134,15 @@ function updateSnCount(container) {
   }
 }
 
-let hasError = false;
 document.getElementById('pl-form').addEventListener('submit', function(e) {
-  hasError = false;
-  document.querySelectorAll('.sn-error').forEach(el => el.style.display = 'none');
-  
   const items = [];
   document.querySelectorAll('.sn-selection').forEach(sel => {
     const partsNumber = sel.dataset.parts;
     const qty = parseInt(sel.dataset.qty);
     const selected = Array.from(sel.querySelectorAll('.sn-checkbox:checked')).map(cb => cb.value);
-    
-    if (selected.length !== qty) {
-      e.preventDefault();
-      hasError = true;
-      const errorEl = sel.querySelector('.sn-error');
-      if (errorEl) {
-        errorEl.textContent = 'Select exactly ' + qty + ' serial numbers';
-        errorEl.style.display = 'block';
-      }
-      sel.closest('.card').style.borderColor = '#f44336';
-      return;
-    }
-    
-    sel.closest('.card').style.borderColor = '';
-    items.push({ parts_number: partsNumber, serial_numbers: selected });
+    items.push({parts_number: partsNumber, serial_numbers: selected});
   });
-  
-  if (!hasError) {
-    document.getElementById('items_json').value = JSON.stringify(items);
-  }
+  document.getElementById('items_json').value = JSON.stringify(items);
 });
 </script>
 {% endblock %}

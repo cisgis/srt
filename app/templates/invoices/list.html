@@ -1,13 +1,53 @@
 {% extends "base.html" %}
 {% block title %}Invoices — SRT{% endblock %}
 {% block page_title %}Invoices{% endblock %}
-{% block page_sub %}{% endblock %}
+{% block page_sub %}{{ invoices|length }} invoice{% if invoices|length != 1 %}s{% endif %}{% endblock %}
 {% set active = "invoices" %}
 
+{% block topbar_actions %}
+<a href="/invoices/new" class="btn btn-primary">+ New Invoice</a>
+{% endblock %}
+
 {% block content %}
+{% if invoices %}
+<table>
+  <thead>
+    <tr>
+      <th>Invoice #</th>
+      <th>Date</th>
+      <th>Client</th>
+      <th>Packing Slip</th>
+      <th>PO Number</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for inv in invoices %}
+    <tr>
+      <td><a href="/invoices/{{ inv.invoice_number }}" class="doc-num">{{ inv.invoice_number }}</a></td>
+      <td>{{ inv.invoice_date }}</td>
+      <td>{{ inv.client_name or "—" }}</td>
+      <td>
+        {% if inv.packing_slip_number %}
+        <a href="/packing-slips/{{ inv.packing_slip_number }}/edit">{{ inv.packing_slip_number }}</a>
+        {% else %}
+        —
+        {% endif %}
+      </td>
+      <td>{{ inv.purchase_number or "—" }}</td>
+      <td>
+        <span class="status-badge status-{{ inv.status|lower }}">{{ inv.status or 'OPEN' }}</span>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
 <div class="empty-state">
-  <div style="font-size: 48px; margin-bottom: 16px;">🚧</div>
-  <h2>Under Construction</h2>
-  <p>Invoice management is being updated. Check back soon.</p>
+  <div style="font-size: 48px; margin-bottom: 16px;">📄</div>
+  <h2>No invoices yet</h2>
+  <p>Create your first invoice from a packing slip.</p>
+  <a href="/packing-slips" class="btn">View Packing Slips →</a>
 </div>
+{% endif %}
 {% endblock %}

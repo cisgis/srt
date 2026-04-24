@@ -62,7 +62,7 @@ def pl_new(
                 }
             )
 
-            query = "SELECT serial_number, location, status FROM Product WHERE parts_number=? AND status='In Stock'"
+            query = "SELECT serial_number, location, status FROM Product WHERE parts_number=? AND status IN ('In Stock', 'Processing / Fulfillment')"
             params = [parts_number]
             if yard:
                 query += " AND location=?"
@@ -169,6 +169,10 @@ async def pl_create(
                     "INSERT INTO Packing_Slip_Items (packing_slip_number, parts_number, serial_number) VALUES (?,?,?)",
                     (plnum, parts, snum),
                 )
+                db.execute(
+                    "UPDATE Product SET status='Processing / Fulfillment', modified_by=?, modified_at=? WHERE serial_number=?",
+                    (user, now, snum),
+                )
 
         db.commit()
         log_info(f"Created PL: {plnum}")
@@ -209,18 +213,18 @@ def pl_detail(request: Request, pl_number: str):
         current_sn = item["serial_number"]
         
         prods = db.execute(
-            "SELECT serial_number, location, status FROM Product WHERE parts_number=? AND (status='In Stock' OR serial_number=?) ORDER BY location, serial_number",
+            "SELECT serial_number, location, status FROM Product WHERE parts_number=? AND (status IN ('In Stock', 'Processing / Fulfillment', 'On Loan') OR serial_number=?) ORDER BY location, serial_number",
             (parts_number, current_sn),
         ).fetchall()
         
-        products_by_yard = {}
+        products_by_status = {}
         for p in prods:
             pd = dict(p)
-            yard = pd.get("location", "")
-            if yard not in products_by_yard:
-                products_by_yard[yard] = []
-            products_by_yard[yard].append(pd)
-        available_products[parts_number] = products_by_yard
+            prod_status = pd.get("status", "")
+            if prod_status not in products_by_status:
+                products_by_status[prod_status] = []
+            products_by_status[prod_status].append(pd)
+        available_products[parts_number] = products_by_status
         
         current_loc = db.execute(
             "SELECT location FROM Product WHERE serial_number=?", (current_sn,)
@@ -279,18 +283,18 @@ def pl_edit(request: Request, pl_number: str, success: str = ""):
         current_sn = item["serial_number"]
         
         prods = db.execute(
-            "SELECT serial_number, location, status FROM Product WHERE parts_number=? AND (status='In Stock' OR serial_number=?) ORDER BY location, serial_number",
+            "SELECT serial_number, location, status FROM Product WHERE parts_number=? AND (status IN ('In Stock', 'Processing / Fulfillment', 'On Loan') OR serial_number=?) ORDER BY location, serial_number",
             (parts_number, current_sn),
         ).fetchall()
         
-        products_by_yard = {}
+        products_by_status = {}
         for p in prods:
             pd = dict(p)
-            yard = pd.get("location", "")
-            if yard not in products_by_yard:
-                products_by_yard[yard] = []
-            products_by_yard[yard].append(pd)
-        available_products[parts_number] = products_by_yard
+            prod_status = pd.get("status", "")
+            if prod_status not in products_by_status:
+                products_by_status[prod_status] = []
+            products_by_status[prod_status].append(pd)
+        available_products[parts_number] = products_by_status
         
         current_loc = db.execute(
             "SELECT location FROM Product WHERE serial_number=?", (current_sn,)
@@ -379,8 +383,8 @@ async def pl_update(
                     (pl_number, parts_number, snum),
                 )
                 db.execute(
-                    "UPDATE Product SET status='In Stock' WHERE serial_number=?",
-                    (snum,),
+                    "UPDATE Product SET status='Processing / Fulfillment', modified_by=?, modified_at=? WHERE serial_number=?",
+                    (user, now, snum),
                 )
 
     for old_sn in current_sns:
@@ -392,8 +396,8 @@ async def pl_update(
                     break
         if not still_selected:
             db.execute(
-                "UPDATE Product SET status='In Stock' WHERE serial_number=?",
-                (old_sn,),
+                "UPDATE Product SET status='In Stock', modified_by=?, modified_at=? WHERE serial_number=?",
+                (user, now, old_sn),
             )
 
     db.commit()
@@ -401,6 +405,78 @@ async def pl_update(
     close_db()
 
     return RedirectResponse(f"/packing-slips/{pl_number}/edit?success=1", status_code=303)
+
+
+@router.get("/{pl_number}/mark-shipped")
+def pl_mark_shipped(request: Request, pl_number: str):
+    db = get_db()
+    pl = db.execute("SELECT * FROM Packing_Slip WHERE packing_slip_number=?", (pl_number,)).fetchone()
+    if not pl:
+        close_db()
+        return HTMLResponse("Packing slip not found", status_code=404)
+    
+    pl = dict(pl)
+    
+    if pl.get("status") == "SHIPPED":
+        close_db()
+        return RedirectResponse(f"/packing-slips/{pl_number}/edit", status_code=303)
+    
+    db.execute(
+        "UPDATE Packing_Slip SET status=?, modified_at=? WHERE packing_slip_number=?",
+        ("SHIPPED", datetime.now().isoformat(), pl_number),
+    )
+    
+    items = db.execute(
+        "SELECT serial_number FROM Packing_Slip_Items WHERE packing_slip_number=?", (pl_number,)
+    ).fetchall()
+    user = request.session.get("username", "unknown")
+    now = datetime.now().isoformat()
+    for item in items:
+        db.execute(
+            "UPDATE Product SET status='On Loan', modified_by=?, modified_at=? WHERE serial_number=?",
+            (user, now, item["serial_number"]),
+        )
+    
+    db.commit()
+    close_db()
+    
+    return RedirectResponse(f"/packing-slips/{pl_number}/edit", status_code=303)
+
+
+@router.get("/{pl_number}/create-invoice")
+def pl_create_invoice(request: Request, pl_number: str):
+    db = get_db()
+    pl = db.execute("SELECT * FROM Packing_Slip WHERE packing_slip_number=?", (pl_number,)).fetchone()
+    if not pl:
+        close_db()
+        return HTMLResponse("Packing slip not found", status_code=404)
+    
+    pl = dict(pl)
+    
+    po_number = ""
+    if pl.get("po_number"):
+        po_number = str(pl["po_number"]).strip()
+    else:
+        po_number = ""
+    
+    items = db.execute(
+        "SELECT * FROM Packing_Slip_Items WHERE packing_slip_number=?", (pl_number,)
+    ).fetchall()
+    close_db()
+
+    items_json = json.dumps([
+        {
+            "parts_number": i["parts_number"],
+            "quantity": 1,
+            "serial_number": i["serial_number"],
+        }
+        for i in items
+    ])
+
+    return RedirectResponse(
+        f"/invoices/new?pl_number={pl_number}&client_id={pl.get('client_id', '')}&ship_to={pl.get('ship_to', '')}&items_json={items_json}&po_number={po_number}",
+        status_code=303,
+    )
 
 
 _pdf_browser = None

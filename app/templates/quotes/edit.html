@@ -233,12 +233,39 @@ const partnumbers = {{ partnumbers_json|tojson }};
 const yards = {{ yards_json|tojson }};
 const groupedItems = {{ grouped_items|tojson }};
 
+console.log('partnumbers count:', partnumbers.length);
+console.log('yards count:', yards.length);
+console.log('First partnumber:', partnumbers[0]);
+
 function addNewLineItem() {
   const container = document.getElementById('line-items');
   const template = document.getElementById('line-item-template');
-  const row = template.content.cloneNode(true);
-  container.appendChild(row);
-  attachRowListeners(container.lastElementChild);
+  
+  // Create completely new element using innerHTML instead of template
+  const newDiv = document.createElement('div');
+  newDiv.className = 'line-item-row';
+  newDiv.style = 'background:#222;border-radius:4px;padding:12px;margin-bottom:12px;';
+  newDiv.innerHTML = '<div style="display:grid;grid-template-columns:2fr 80px 1fr;gap:8px;align-items:end;margin-bottom:12px;"><div><label>Catalog Item *</label><select class="parts-select" name="parts_number"><option value="">— Select —</option></select></div><div style="display:flex;align-items:end;"><button type="button" onclick="removeRow(this)" style="background:none;border:none;cursor:pointer;color:#dc3545;font-size:18px;font-weight:bold;padding:4px;">✕</button></div></div><div class="yard-rows"></div><div style="margin-top:8px;display:flex;align-items:center;gap:8px;"><label style="font-size:13px;">Line Total:</label><span class="line-total" style="font-weight:bold;">$0.00</span></div>';
+  
+  container.appendChild(newDiv);
+  const select = newDiv.querySelector('.parts-select');
+  partnumbers.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.parts_number;
+    opt.textContent = p.parts_number;
+    opt.dataset.resale = p.resale_price || 0;
+    opt.dataset.rental = p.rental_price || 0;
+    select.appendChild(opt);
+  });
+  
+  select.addEventListener('change', function() {
+    updateYardRows(newDiv, this.value);
+    updatePrices();
+    calculateTotal();
+  });
+  
+  console.log('New row added via innerHTML');
+  calculateTotal();
 }
 
 function removeRow(btn) {
@@ -250,11 +277,17 @@ function removeRow(btn) {
 }
 
 function attachRowListeners(row) {
+  console.log('attachRowListeners called', row);
   const select = row.querySelector('.parts-select');
+  if (!select) {
+    console.error('select not found');
+    return;
+  }
   const partsOptions = partnumbers.map(p => 
     '<option value="' + p.parts_number + '" data-resale="' + (p.resale_price || 0) + '" data-rental="' + (p.rental_price || 0) + '">' + p.parts_number + '</option>'
   ).join('');
   select.innerHTML = '<option value="">— Select —</option>' + partsOptions;
+  console.log('Options set, partnumbers:', partnumbers.length);
   
   select.addEventListener('change', function() {
     updateYardRows(row, this.value);
@@ -275,7 +308,12 @@ function updateYardRows(row, partsNumber) {
   if (!partsNumber) return;
   
   const pn = partnumbers.find(p => p.parts_number === partsNumber);
-  if (!pn) return;
+  if (!pn) {
+    console.error('Part number not found:', partsNumber);
+    return;
+  }
+  
+  console.log('updateYardRows pn:', pn);
   
   const availData = pn.availability || {};
   const inTransitData = pn.in_transit || {};
@@ -291,13 +329,15 @@ function updateYardRows(row, partsNumber) {
       yardRow.querySelector('.yard-name').textContent = yard;
       yardRow.querySelector('.yard-avail').textContent = inStock;
       const qtyInput = yardRow.querySelector('.yard-qty');
-      qtyInput.dataset.partsNumber = partsNumber;
-      qtyInput.dataset.unitPrice = pn.resale_price || 0;
-      qtyInput.dataset.rentalPrice = pn.rental_price || 0;
       qtyInput.dataset.yard = yard;
       qtyInput.dataset.status = 'In Stock';
       qtyInput.dataset.maxAvail = inStock;
       qtyInput.max = inStock;
+      
+      // Set price from pn object (resale_price for sale, rental_price for rental)
+      qtyInput.dataset.unitPrice = pn.resale_price || 0;
+      qtyInput.dataset.rentalPrice = pn.rental_price || 0;
+      
       qtyInput.addEventListener('input', function() {
         if (parseInt(this.value) > parseInt(this.max)) this.value = this.max;
         calculateTotal();
@@ -312,12 +352,14 @@ function updateYardRows(row, partsNumber) {
       yardRow.querySelector('.yard-name').textContent = yard;
       yardRow.querySelector('.yard-avail').textContent = inTransit;
       const qtyInput = yardRow.querySelector('.yard-qty');
-      qtyInput.dataset.unitPrice = pn.resale_price || 0;
-      qtyInput.dataset.rentalPrice = pn.rental_price || 0;
       qtyInput.dataset.yard = yard;
       qtyInput.dataset.status = 'In Transit';
       qtyInput.dataset.maxAvail = inTransit;
       qtyInput.max = inTransit;
+      
+      qtyInput.dataset.unitPrice = pn.resale_price || 0;
+      qtyInput.dataset.rentalPrice = pn.rental_price || 0;
+      
       qtyInput.addEventListener('input', function() {
         if (parseInt(this.value) > parseInt(this.max)) this.value = this.max;
         calculateTotal();
@@ -330,9 +372,10 @@ function updateYardRows(row, partsNumber) {
 function updatePrices() {
   const rentalInput = document.querySelector('input[name="quote_type"]');
   const rental = rentalInput && rentalInput.value === 'RENTAL';
+  // Update unitPrice on all yard rows based on rental/sale
   document.querySelectorAll('.yard-qty').forEach(qty => {
-    const resalePrice = parseFloat(qty.dataset.resalePrice || qty.dataset.unitPrice || 0);
     const rentalPrice = parseFloat(qty.dataset.rentalPrice || 0);
+    const resalePrice = parseFloat(qty.dataset.unitPrice || 0);
     qty.dataset.unitPrice = rental ? rentalPrice : resalePrice;
   });
   calculateTotal();
@@ -351,16 +394,17 @@ function calculateTotal() {
     const partsNumber = row.querySelector('.parts-select').value;
     if (!partsNumber) return;
     
-    const select = row.querySelector('.parts-select');
-    const selectedOption = select.options[select.selectedIndex];
-    const resalePrice = parseFloat(selectedOption.dataset.resale) || 0;
-    const rentalPrice = parseFloat(selectedOption.dataset.rental) || 0;
-    const unitPrice = rental ? rentalPrice : resalePrice;
+    // Get rental/sale mode
+    const rentalInput = document.querySelector('input[name="quote_type"]');
+    const rental = rentalInput && rentalInput.value === 'RENTAL';
     
     let lineTotal = 0;
     row.querySelectorAll('.yard-row').forEach(yardRow => {
-      const qty = parseInt(yardRow.querySelector('.yard-qty').value) || 0;
-      const itemTotal = qty * unitPrice * (rental ? rentalDays : 1);
+      const qtyInput = yardRow.querySelector('.yard-qty');
+      const qty = parseInt(qtyInput.value) || 0;
+      // Get the CURRENT price (which may have been updated by updatePrices)
+      const price = parseFloat(qtyInput.dataset.unitPrice) || 0;
+      const itemTotal = qty * price * (rental ? rentalDays : 1);
       lineTotal += itemTotal;
     });
     row.querySelector('.line-total').textContent = '$' + lineTotal.toFixed(2);
@@ -407,6 +451,10 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     }
   });
+
+  // Call updatePrices to set initial pricing based on quote type
+  updatePrices();
+  calculateTotal();
 
   document.getElementById('client_company').addEventListener('change', function() {
     const company = this.value;

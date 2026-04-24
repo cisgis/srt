@@ -1,17 +1,163 @@
 {% extends "base.html" %}
-{% block title %}Invoices — SRT{% endblock %}
-{% block page_title %}New Invoice{% endblock %}
-{% block page_sub %}{% endblock %}
+{% block title %}{% if invoice %}Invoice {{ invoice.invoice_number }}{% else %}New Invoice{% endif %} — SRT{% endblock %}
+{% block page_title %}{% if invoice %}Invoice {{ invoice.invoice_number }}{% else %}New Invoice{% endif %}{% endblock %}
+{% block page_sub %}{% if pl_number %}From PL {{ pl_number }}{% endif %}{% endblock %}
 {% set active = "invoices" %}
 
 {% block topbar_actions %}
 <a href="/invoices/" class="btn">← Back</a>
+{% if invoice %}
+<a href="/invoices/{{ invoice.invoice_number }}/pdf" class="btn" target="_blank">Download PDF</a>
+{% endif %}
 {% endblock %}
 
 {% block content %}
-<div class="empty-state">
-  <div style="font-size: 48px; margin-bottom: 16px;">🚧</div>
-  <h2>Under Construction</h2>
-  <p>Invoice management is being updated. Check back soon.</p>
+{% if success %}
+<div class="card" style="background: #d4edda; border-left: 4px solid #28a745; margin-bottom: 16px;">
+  <div style="font-weight: bold; color: #28a745;">✓ Invoice saved successfully.</div>
 </div>
+{% endif %}
+
+<form method="post" action="{% if invoice %}/invoices/{{ invoice.invoice_number }}/edit{% else %}/invoices/new{% endif %}?inv_number={{ invoice_number or '' }}" enctype="multipart/form-data">
+  <input type="hidden" name="packing_slip_number" value="{{ pl_number or invoice.packing_slip_number or '' }}">
+  <input type="hidden" name="client_id" value="{{ client_id or invoice.client_id or '' }}">
+
+  <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+    <div class="form-group">
+      <label>Invoice Number</label>
+      <input type="text" value="{{ invoice_number or invoice.invoice_number or 'Auto-generated' }}" disabled>
+    </div>
+    <div class="form-group">
+      <label>Date *</label>
+      <input type="date" name="invoice_date" value="{{ invoice.invoice_date or today }}" required>
+    </div>
+    <div class="form-group">
+      <label>Payment Terms</label>
+      <select name="payment_term">
+        <option value="">Select...</option>
+        <option value="COD" {% if invoice.payment_term == 'COD' or default_payment_term == 'COD' %}selected{% endif %}>COD</option>
+        <option value="Net 7" {% if invoice.payment_term == 'Net 7' or default_payment_term == 'Net 7' %}selected{% endif %}>Net 7</option>
+        <option value="Net 14" {% if invoice.payment_term == 'Net 14' or default_payment_term == 'Net 14' %}selected{% endif %}>Net 14</option>
+        <option value="Net 21" {% if invoice.payment_term == 'Net 21' or default_payment_term == 'Net 21' %}selected{% endif %}>Net 21</option>
+        <option value="Net 30" {% if invoice.payment_term == 'Net 30' or default_payment_term == 'Net 30' %}selected{% endif %}>Net 30</option>
+        <option value="Net 60" {% if invoice.payment_term == 'Net 60' or default_payment_term == 'Net 60' %}selected{% endif %}>Net 60</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 20px;">
+    <h4>PO Number *</h4>
+    <p style="font-size: 0.9em; color: #666; margin-bottom: 12px;">Enter PO Number OR upload attachment (PDF only)</p>
+    
+    <div style="display: flex; gap: 20px; align-items: center;">
+      <div class="form-group" style="flex: 1; margin-bottom: 0;">
+        <label>PO Number</label>
+        <input type="text" name="purchase_number" id="purchase_number" value="{{ po_number or invoice.purchase_number or '' }}" placeholder="Enter PO Number" {% if invoice.po_attachment_path %}disabled{% endif %}>
+      </div>
+      
+      <div style="text-align: center; font-weight: bold; color: #999;">OR</div>
+      
+      <div class="form-group" style="flex: 1; margin-bottom: 0;">
+        <label>Upload PO (PDF)</label>
+        <input type="file" name="po_attachment" id="po_attachment" accept=".pdf" {% if invoice.purchase_number %}disabled{% endif %}>
+        {% if invoice.po_attachment_path %}
+        <p style="margin-top: 8px;">
+          <a href="/{{ invoice.po_attachment_path }}" target="_blank" class="btn btn-small">View Uploaded PO</a>
+        </p>
+        {% endif %}
+      </div>
+    </div>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const poInput = document.getElementById('purchase_number');
+      const poFile = document.getElementById('po_attachment');
+      
+      poInput.addEventListener('input', function() {
+        poFile.disabled = poInput.value.trim() !== '';
+      });
+      
+      poFile.addEventListener('change', function() {
+        poInput.disabled = poFile.files.length > 0;
+      });
+    });
+    </script>
+  </div>
+
+  {% if client and client.name %}
+  <div class="card" style="margin-bottom: 20px;">
+    <h4>Bill To</h4>
+    <p><strong>{{ client.name }}</strong></p>
+    {% if client.company %}<p>{{ client.company }}</p>{% endif %}
+    {% if client.billing_address %}<p>{{ client.billing_address }}</p>{% endif %}
+  </div>
+  {% endif %}
+
+  {% if items %}
+  <div class="card" style="margin-bottom: 20px;">
+    <h4>Line Items</h4>
+    <table>
+      <thead>
+        <tr>
+          <th>Part #</th>
+          <th>Description</th>
+          <th>Serial #</th>
+          <th style="text-align: right;">Unit Price</th>
+          <th style="text-align: center;">Qty</th>
+          <th style="text-align: right;">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td>{{ item.parts_number }}</td>
+          <td>{{ item.description or '' }}</td>
+          <td>{{ item.serial_number or '' }}</td>
+          <td style="text-align: right;">${{ "%.2f"|format(item.resale_price or 0) }}</td>
+          <td style="text-align: center;">1</td>
+          <td style="text-align: right;">${{ "%.2f"|format(item.resale_price or 0) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" style="margin-bottom: 20px; max-width: 400px; margin-left: auto;">
+    <table style="width: 100%;">
+      <tr>
+        <td style="padding: 6px 0;">Subtotal:</td>
+        <td style="text-align: right; padding: 6px 0;">${{ "%.2f"|format(total or 0) }}</td>
+      </tr>
+      {% if discount_amount > 0 %}
+      <tr>
+        <td style="padding: 6px 0;">
+          Discount {% if discount_percent > 0 %}({{ "%.0f"|format(discount_percent) }}%){% endif %}:
+        </td>
+        <td style="text-align: right; padding: 6px 0;">-${{ "%.2f"|format(discount_amount) }}</td>
+      </tr>
+      {% endif %}
+      {% if shipping_cost > 0 %}
+      <tr>
+        <td style="padding: 6px 0;">Shipping:</td>
+        <td style="text-align: right; padding: 6px 0;">${{ "%.2f"|format(shipping_cost) }}</td>
+      </tr>
+      {% endif %}
+      {% if sales_tax > 0 %}
+      <tr>
+        <td style="padding: 6px 0;">Tax ({{ "%.2f"|format(sales_tax_rate * 100) }}%):</td>
+        <td style="text-align: right; padding: 6px 0;">${{ "%.2f"|format(sales_tax) }}</td>
+      </tr>
+      {% endif %}
+      <tr style="font-weight: bold; border-top: 2px solid #333;">
+        <td style="padding: 10px 0 0 0;">Total:</td>
+        <td style="text-align: right; padding: 10px 0 0 0;">${{ "%.2f"|format(grand_total or 0) }}</td>
+      </tr>
+    </table>
+  </div>
+  {% endif %}
+
+  <div style="margin-top: 20px;">
+    <button type="submit" class="btn btn-primary">Save Invoice</button>
+  </div>
+</form>
 {% endblock %}

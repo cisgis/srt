@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Enter PO Number — SRT{% endblock %}
+{% block page_title %}Enter PO Number{% endblock %}
+{% block page_sub %}{{ pl.packing_slip_number }}{% endblock %}
+{% set active = "packing_slips" %}
+
+{% block topbar_actions %}
+<a href="/packing-slips/{{ pl.packing_slip_number }}/edit" class="btn">← Back</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 600px;">
+  <p style="margin-bottom: 20px;">A PO Number is required to create an invoice for this packing slip.</p>
+  
+  <form method="post" action="/packing-slips/{{ pl.packing_slip_number }}/save-po">
+    <div class="form-group">
+      <label>PO Number *</label>
+      <input type="text" name="po_number" required placeholder="Enter PO Number or upload attachment">
+    </div>
+    
+    <div style="margin-top: 20px; display: flex; gap: 10px;">
+      <button type="submit" class="btn btn-primary">Continue to Invoice</button>
+      <a href="/packing-slips/{{ pl.packing_slip_number }}/edit" class="btn">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

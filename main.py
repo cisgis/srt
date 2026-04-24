@@ -103,18 +103,41 @@ def root(request: Request):
         return RedirectResponse("/login", status_code=303)
 
     db = get_db()
+    try:
+        db.execute("ALTER TABLE Invoice ADD COLUMN status TEXT DEFAULT 'OPEN'")
+    except:
+        pass
+    try:
+        db.execute("ALTER TABLE Quote ADD COLUMN status TEXT DEFAULT 'DRAFT'")
+    except:
+        pass
+    try:
+        db.execute("ALTER TABLE Packing_Slip ADD COLUMN status TEXT DEFAULT 'DRAFT'")
+    except:
+        pass
+    
     stats = {
         "total_products": db.execute("SELECT COUNT(*) FROM Product").fetchone()[0],
         "available": db.execute(
-            "SELECT COUNT(*) FROM Product WHERE status='Available'"
+            "SELECT COUNT(*) FROM Product WHERE status='In Stock'"
         ).fetchone()[0],
-        "open_quotes": 0,
-        "open_pls": 0,
-        "open_invoices": 0,
+        "open_quotes": db.execute(
+            "SELECT COUNT(*) FROM Quote WHERE status != 'CLOSED'"
+        ).fetchone()[0],
+        "open_pls": db.execute(
+            "SELECT COUNT(*) FROM Packing_Slip WHERE status = 'DRAFT'"
+        ).fetchone()[0],
+        "open_invoices": db.execute(
+            "SELECT COUNT(*) FROM Invoice WHERE status != 'PAID'"
+        ).fetchone()[0],
         "total_clients": db.execute("SELECT COUNT(*) FROM Clients").fetchone()[0],
     }
-    recent_quotes = []
-    recent_pls = []
+    recent_quotes = db.execute(
+        "SELECT q.quote_number, q.quote_date, c.name as customer_name FROM Quote q LEFT JOIN Clients c ON q.client_id=c.client_id ORDER BY q.created_at DESC LIMIT 5"
+    ).fetchall()
+    recent_pls = db.execute(
+        "SELECT pl.packing_slip_number, pl.packing_slip_date, c.name as customer_name FROM Packing_Slip pl LEFT JOIN Clients c ON pl.client_id=c.client_id ORDER BY pl.created_at DESC LIMIT 5"
+    ).fetchall()
     close_db()
 
     return templates.TemplateResponse(
