@@ -325,12 +325,19 @@ async def product_create(
     def save_file(upload_file, prefix):
         if not upload_file or not upload_file.filename:
             return None
-        fn = f"{prefix}_{serial_number}_{upload_file.filename}"
-        dest = config.UPLOAD_DIR / fn
+        if prefix == "mtr":
+            dest = config.MTR_DIR / f"{serial_number}_{upload_file.filename}"
+            rel_path = f"mtr/{dest.name}"
+        elif prefix in ("drw", "drawing"):
+            dest = config.DRAWINGS_DIR / f"{serial_number}_{upload_file.filename}"
+            rel_path = f"drawings/{dest.name}"
+        else:
+            dest = config.UPLOAD_DIR / f"{prefix}_{serial_number}_{upload_file.filename}"
+            rel_path = str(dest)
         with open(dest, "wb") as f:
             shutil.copyfileobj(upload_file.file, f)
-        return fn
-
+        return rel_path
+    
     mtr_fn = save_file(mtr_file, "mtr")
     drawing_fn = save_file(drawing_file, "drw")
 
@@ -500,11 +507,15 @@ async def product_edit(
     def save_file(upload_file, prefix):
         if not upload_file or not upload_file.filename:
             return None
-        fn = f"{prefix}_{serial_number}_{upload_file.filename}"
-        dest = config.UPLOAD_DIR / fn
+        if prefix == "mtr":
+            dest = config.MTR_DIR / f"{serial_number}_{upload_file.filename}"
+        elif prefix in ("drw", "drawing"):
+            dest = config.DRAWINGS_DIR / f"{serial_number}_{upload_file.filename}"
+        else:
+            dest = config.UPLOAD_DIR / f"{prefix}_{serial_number}_{upload_file.filename}"
         with open(dest, "wb") as f:
             shutil.copyfileobj(upload_file.file, f)
-        return fn
+        return dest.name
 
     now = datetime.now().isoformat()
     user = request.session.get("username", "unknown")

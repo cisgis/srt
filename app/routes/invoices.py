@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from datetime import datetime, timedelta
 import io
+from config import PO_ATTACHMENTS_DIR, PL_ATTACHMENTS_DIR
 from app.database import get_db, close_db, next_doc_number
 from app.services import pdf_service, email_service
 from app.logger import log_info, log_error
@@ -175,21 +176,21 @@ async def inv_create(
     
     po_attachment_path = None
     if po_attachment and po_attachment.filename:
-        upload_dir = Path("data/uploads/po_attachments")
+        upload_dir = PO_ATTACHMENTS_DIR
         upload_dir.mkdir(parents=True, exist_ok=True)
         file_path = upload_dir / po_attachment.filename
         with open(file_path, "wb") as f:
             f.write(await po_attachment.read())
-        po_attachment_path = f"data/uploads/po_attachments/{po_attachment.filename}"
+        po_attachment_path = f"po_attachments/{po_attachment.filename}"
     
     pl_attachment_path = None
     if pl_attachment and pl_attachment.filename:
-        upload_dir = Path("data/uploads/pl_attachments")
+        upload_dir = PL_ATTACHMENTS_DIR
         upload_dir.mkdir(parents=True, exist_ok=True)
         file_path = upload_dir / pl_attachment.filename
         with open(file_path, "wb") as f:
             f.write(await pl_attachment.read())
-        pl_attachment_path = f"data/uploads/pl_attachments/{pl_attachment.filename}"
+        pl_attachment_path = f"pl_attachments/{pl_attachment.filename}"
     
     if not purchase_number and not po_attachment_path:
         error_url = "/invoices/new"
@@ -309,21 +310,21 @@ async def inv_update(
     
     po_attachment_path = None
     if po_attachment and po_attachment.filename:
-        upload_dir = Path("data/uploads/po_attachments")
+        upload_dir = PO_ATTACHMENTS_DIR
         upload_dir.mkdir(parents=True, exist_ok=True)
         file_path = upload_dir / po_attachment.filename
         with open(file_path, "wb") as f:
             f.write(await po_attachment.read())
-        po_attachment_path = f"data/uploads/po_attachments/{po_attachment.filename}"
+        po_attachment_path = f"po_attachments/{po_attachment.filename}"
     
     pl_attachment_path = None
     if pl_attachment and pl_attachment.filename:
-        upload_dir = Path("data/uploads/pl_attachments")
+        upload_dir = PL_ATTACHMENTS_DIR
         upload_dir.mkdir(parents=True, exist_ok=True)
         file_path = upload_dir / pl_attachment.filename
         with open(file_path, "wb") as f:
             f.write(await pl_attachment.read())
-        pl_attachment_path = f"data/uploads/pl_attachments/{pl_attachment.filename}"
+        pl_attachment_path = f"pl_attachments/{pl_attachment.filename}"
     
     db = get_db()
     

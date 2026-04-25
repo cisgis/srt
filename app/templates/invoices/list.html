@@ -39,7 +39,8 @@
         {% if inv.purchase_number %}
           {{ inv.purchase_number }}
         {% elif inv.po_attachment_path %}
-          <a href="/{{ inv.po_attachment_path }}" target="_blank">{{ inv.po_attachment_path.split('/')[-1] }}</a>
+          {% set po_path = 'po_attachments/' + inv.po_attachment_path if inv.po_attachment_path and '/' not in inv.po_attachment_path else inv.po_attachment_path %}
+          <a href="/data/uploads/{{ po_path }}" target="_blank">{{ inv.po_attachment_path.split('/')[-1] }}</a>
         {% else %}
           —
         {% endif %}

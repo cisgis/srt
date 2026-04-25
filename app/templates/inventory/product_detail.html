@@ -74,7 +74,8 @@
       <div class="form-group">
         <label for="mtr_file">MTR File</label>
         {% if product.mtr_filename %}
-        <div style="margin: 4px 0;"><a href="/uploads/{{ product.mtr_filename }}" target="_blank">{{ product.mtr_filename }}</a></div>
+        {% set mtr_path = 'mtr/' + product.mtr_filename if not '/' in product.mtr_filename else product.mtr_filename %}
+        <div style="margin: 4px 0;"><a href="/data/uploads/{{ mtr_path }}" target="_blank">{{ product.mtr_filename }}</a></div>
         {% endif %}
         <input type="file" id="mtr_file" name="mtr_file" accept=".pdf,.jpg,.jpeg,.png">
         <small style="color:#666;">Max 10MB</small>
@@ -83,7 +84,8 @@
       <div class="form-group">
         <label for="drawing_file">Drawing File</label>
         {% if product.drawing_filename %}
-        <div style="margin: 4px 0;"><a href="/uploads/{{ product.drawing_filename }}" target="_blank">{{ product.drawing_filename }}</a></div>
+        {% set drw_path = 'drawings/' + product.drawing_filename if not '/' in product.drawing_filename else product.drawing_filename %}
+        <div style="margin: 4px 0;"><a href="/data/uploads/{{ drw_path }}" target="_blank">{{ product.drawing_filename }}</a></div>
         {% endif %}
         <input type="file" id="drawing_file" name="drawing_file" accept=".pdf,.jpg,.jpeg,.png">
         <small style="color:#666;">Max 10MB</small>

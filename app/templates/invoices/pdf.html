@@ -191,7 +191,8 @@
 
   {% if invoice.po_attachment_path %}
   <div class="po-attachment">
-    <strong>PO Attachment:</strong> <a href="{{ invoice.po_attachment_path }}">View Attached PO</a>
+    {% set po_path = 'po_attachments/' + invoice.po_attachment_path if invoice.po_attachment_path and '/' not in invoice.po_attachment_path else invoice.po_attachment_path %}
+    <strong>PO Attachment:</strong> <a href="/data/uploads/{{ po_path }}">View Attached PO</a>
   </div>
   {% endif %}
 

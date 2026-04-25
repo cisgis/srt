@@ -6,6 +6,13 @@ __pycache__/
 *.pyd
 *.so
 *.pyc
+check_*.py
+cleanup_*.py
+debug_*.py
+fix_*.py
+temp_*.py
+test_*.py
+
 
 # ── Virtual Environments ────────────────────────────────────
 venv/

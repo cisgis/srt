@@ -11,8 +11,18 @@ UPLOAD_DIR = DATA_DIR / "uploads"
 DB_PATH = DATA_DIR / "srt.db"
 LOGO_PATH = BASE_DIR / "examples" / "logo.webp"
 
+# Attachment subfolders
+PO_ATTACHMENTS_DIR = UPLOAD_DIR / "po_attachments"
+PL_ATTACHMENTS_DIR = UPLOAD_DIR / "pl_attachments"
+MTR_DIR = UPLOAD_DIR / "mtr"
+DRAWINGS_DIR = UPLOAD_DIR / "drawings"
+
 DATA_DIR.mkdir(exist_ok=True)
 UPLOAD_DIR.mkdir(exist_ok=True)
+PO_ATTACHMENTS_DIR.mkdir(exist_ok=True)
+PL_ATTACHMENTS_DIR.mkdir(exist_ok=True)
+MTR_DIR.mkdir(exist_ok=True)
+DRAWINGS_DIR.mkdir(exist_ok=True)
 
 # ── Company ──────────────────────────────────────────────────
 COMPANY_NAME = "STEEL RIVER TECHNOLOGIES"

@@ -73,7 +73,8 @@
         <input type="file" name="po_attachment" id="po_attachment" accept=".pdf" {% if invoice.purchase_number %}disabled{% endif %}>
         {% if invoice.po_attachment_path %}
         <p style="margin-top: 8px;">
-          <a href="/{{ invoice.po_attachment_path }}" target="_blank">{{ invoice.po_attachment_path.split('/')[-1] }}</a>
+          {% set po_path = 'po_attachments/' + invoice.po_attachment_path if invoice.po_attachment_path and '/' not in invoice.po_attachment_path else invoice.po_attachment_path %}
+          <a href="/data/uploads/{{ po_path }}" target="_blank">{{ invoice.po_attachment_path.split('/')[-1] }}</a>
         </p>
         {% endif %}
       </div>
@@ -103,7 +104,8 @@
       <input type="file" name="pl_attachment" id="pl_attachment" accept=".pdf">
       {% if invoice.pl_attachment_path %}
       <p style="margin-top: 8px;">
-        <a href="/{{ invoice.pl_attachment_path }}" target="_blank">{{ invoice.pl_attachment_path.split('/')[-1] }}</a>
+        {% set pl_path = 'pl_attachments/' + invoice.pl_attachment_path if invoice.pl_attachment_path and '/' not in invoice.pl_attachment_path else invoice.pl_attachment_path %}
+        <a href="/data/uploads/{{ pl_path }}" target="_blank">{{ invoice.pl_attachment_path.split('/')[-1] }}</a>
       </p>
       {% endif %}
     </div>
