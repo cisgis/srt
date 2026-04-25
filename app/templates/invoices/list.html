@@ -18,6 +18,7 @@
       <th>Client</th>
       <th>Packing Slip</th>
       <th>PO Number</th>
+      <th>Due Date</th>
       <th>Status</th>
     </tr>
   </thead>
@@ -34,7 +35,25 @@
         —
         {% endif %}
       </td>
-      <td>{{ inv.purchase_number or "—" }}</td>
+      <td>
+        {% if inv.purchase_number %}
+          {{ inv.purchase_number }}
+        {% elif inv.po_attachment_path %}
+          <a href="/{{ inv.po_attachment_path }}" target="_blank">{{ inv.po_attachment_path.split('/')[-1] }}</a>
+        {% else %}
+          —
+        {% endif %}
+      </td>
+      <td>
+        {% if inv.due_date %}
+          {{ inv.due_date }}
+          {% if inv.is_overdue %}
+            <span class="badge" style="background:#3d1a1a;color:#e05050;">Overdue</span>
+          {% endif %}
+        {% else %}
+          —
+        {% endif %}
+      </td>
       <td>
         <span class="status-badge status-{{ inv.status|lower }}">{{ inv.status or 'OPEN' }}</span>
       </td>

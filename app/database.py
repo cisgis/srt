@@ -82,7 +82,7 @@ def init_db():
         statuses = [
             ("In Stock", 1),
             ("Pending Cert", 2),
-            ("On Loan", 3),
+            ("On Rent", 3),
             ("Sold", 4),
             ("Damaged", 5),
             ("In Repair", 6),
@@ -186,7 +186,7 @@ CREATE TABLE IF NOT EXISTS Product (
     serial_number                   TEXT PRIMARY KEY,
     parts_number                    TEXT NOT NULL REFERENCES PartNumber(parts_number),
     status                          TEXT CHECK(status IN (
-                                         'In Stock','Pending Certification','On Loan',
+                                         'In Stock','Pending Cert','On Rent','Returned',
                                          'Sold','Damaged','In Repair',
                                          'Retired / Decommissioned','Lost',
                                          'Inbound in Transit','Processing / Fulfillment')),
@@ -269,6 +269,7 @@ CREATE TABLE IF NOT EXISTS Invoice (
     packing_slip_number TEXT REFERENCES Packing_Slip(packing_slip_number),
     purchase_number   TEXT,
     po_attachment_path TEXT,
+    pl_attachment_path TEXT,
     payment_term      TEXT,
     invoice_date      TEXT,
     client_id         TEXT REFERENCES Clients(client_id),
@@ -293,12 +294,14 @@ CREATE TABLE IF NOT EXISTS Transaction_External (
 );
 CREATE TABLE IF NOT EXISTS Transaction_Internal (
     transaction_int_id  INTEGER PRIMARY KEY AUTOINCREMENT,
+    parts_number        TEXT REFERENCES PartNumber(parts_number),
+    serial_number       TEXT,
+    old_status          TEXT,
+    new_status          TEXT,
     from_location       TEXT,
     to_location         TEXT,
-    move_date           TEXT,
-    receive_date        TEXT,
-    moved_by            TEXT,
-    reason              TEXT,
+    change_date         TEXT,
+    notes               TEXT,
     created_by TEXT,
     created_at TEXT,
     modified_by TEXT,
@@ -318,7 +321,7 @@ CREATE TABLE IF NOT EXISTS Product (
     serial_number                   TEXT PRIMARY KEY,
     parts_number                    TEXT NOT NULL REFERENCES PartNumber(parts_number),
     status                          TEXT CHECK(status IN (
-                                         'In Stock','Pending Certification','On Loan',
+                                         'In Stock','Pending Cert','On Rent','Returned',
                                          'Sold','Damaged','In Repair',
                                          'Retired / Decommissioned','Lost',
                                          'Inbound in Transit','Processing / Fulfillment')),
@@ -396,6 +399,7 @@ CREATE TABLE IF NOT EXISTS Invoice (
     packing_slip_number TEXT REFERENCES Packing_Slip(packing_slip_number),
     purchase_number   TEXT,
     po_attachment_path TEXT,
+    pl_attachment_path TEXT,
     payment_term      TEXT,
     invoice_date      TEXT,
     client_id         TEXT REFERENCES Clients(client_id),
@@ -417,12 +421,16 @@ CREATE TABLE IF NOT EXISTS Transaction_External_Items (
 );
 CREATE TABLE IF NOT EXISTS Transaction_Internal (
     transaction_int_id  INTEGER PRIMARY KEY AUTOINCREMENT,
-    from_location       TEXT,
-    to_location         TEXT,
-    move_date           TEXT,
-    receive_date        TEXT,
-    moved_by            TEXT,
-    reason              TEXT
+    parts_number        TEXT REFERENCES PartNumber(parts_number),
+    serial_number       TEXT,
+    old_status          TEXT,
+    new_status          TEXT,
+    change_date         TEXT,
+    notes               TEXT,
+    created_by TEXT,
+    created_at TEXT,
+    modified_by TEXT,
+    modified_at TEXT
 );
 CREATE TABLE IF NOT EXISTS Transaction_Internal_Items (
     item_id            INTEGER PRIMARY KEY AUTOINCREMENT,

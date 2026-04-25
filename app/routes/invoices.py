@@ -2,7 +2,8 @@ from fastapi import APIRouter, Request, Form, File, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
+import io
 from app.database import get_db, close_db, next_doc_number
 from app.services import pdf_service, email_service
 from app.logger import log_info, log_error
@@ -15,10 +16,20 @@ _pdf_browser = None
 
 async def _get_pdf_browser():
     global _pdf_browser
-    if _pdf_browser is None:
-        from playwright.async_api import async_playwright
-        p = await async_playwright().start()
-        _pdf_browser = await p.chromium.launch()
+    from playwright.async_api import async_playwright
+
+    try:
+        if _pdf_browser is not None and _pdf_browser.is_connected():
+            try:
+                await _pdf_browser.pages
+                return _pdf_browser
+            except:
+                pass
+    except:
+        pass
+    
+    p = await async_playwright().start()
+    _pdf_browser = await p.chromium.launch(headless=True)
     return _pdf_browser
 
 
@@ -33,14 +44,32 @@ def inv_list(request: Request):
         ORDER BY i.created_at DESC
     """).fetchall()
     close_db()
+    
+    today = datetime.now().strftime("%Y-%m-%d")
+    
+    invoice_list = []
+    for r in (invoices if invoices else []):
+        inv = dict(r)
+        due_date = None
+        if inv.get("payment_term") and inv.get("payment_term") != "COD":
+            try:
+                days = int(inv["payment_term"].replace("Net ", "").replace("net ", ""))
+                due_date = (datetime.strptime(inv.get("invoice_date", today), "%Y-%m-%d") + timedelta(days=days)).strftime("%Y-%m-%d")
+            except:
+                pass
+        inv["due_date"] = due_date
+        inv["is_overdue"] = due_date and due_date < today
+        invoice_list.append(inv)
+    
     return templates.TemplateResponse("invoices/list.html", {
         "request": request,
-        "invoices": [dict(r) for r in invoices] if invoices else []
+        "invoices": invoice_list,
+        "today": today,
     })
 
 
 @router.get("/new", response_class=HTMLResponse)
-def inv_new(request: Request, pl_number: str = "", client_id: str = "", ship_to: str = "", items_json: str = "", po_number: str = ""):
+def inv_new(request: Request, pl_number: str = "", client_id: str = "", ship_to: str = "", items_json: str = "", po_number: str = "", error: str = ""):
     db = get_db()
     
     invoice = None
@@ -115,6 +144,7 @@ def inv_new(request: Request, pl_number: str = "", client_id: str = "", ship_to:
         "sales_tax": sales_tax,
         "grand_total": grand_total,
         "default_payment_term": default_payment_term,
+        "error": error,
     })
 
 
@@ -125,6 +155,7 @@ async def inv_create(
     packing_slip_number: str = Form(...),
     purchase_number: str = Form(""),
     po_attachment: UploadFile = File(None),
+    pl_attachment: UploadFile = File(None),
     payment_term: str = Form(""),
     invoice_date: str = Form(...),
     client_id: str = Form(""),
@@ -144,22 +175,38 @@ async def inv_create(
     
     po_attachment_path = None
     if po_attachment and po_attachment.filename:
-        upload_dir = Path("uploads/po_attachments")
+        upload_dir = Path("data/uploads/po_attachments")
         upload_dir.mkdir(parents=True, exist_ok=True)
-        file_ext = Path(po_attachment.filename).suffix
-        file_path = upload_dir / f"{invnum}{file_ext}"
+        file_path = upload_dir / po_attachment.filename
         with open(file_path, "wb") as f:
             f.write(await po_attachment.read())
-        po_attachment_path = str(file_path)
+        po_attachment_path = f"data/uploads/po_attachments/{po_attachment.filename}"
+    
+    pl_attachment_path = None
+    if pl_attachment and pl_attachment.filename:
+        upload_dir = Path("data/uploads/pl_attachments")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        file_path = upload_dir / pl_attachment.filename
+        with open(file_path, "wb") as f:
+            f.write(await pl_attachment.read())
+        pl_attachment_path = f"data/uploads/pl_attachments/{pl_attachment.filename}"
+    
+    if not purchase_number and not po_attachment_path:
+        error_url = "/invoices/new"
+        if packing_slip_number:
+            error_url += f"?pl_number={packing_slip_number}&client_id={client_id or ''}"
+        error_url += "&error=PO+Number+or+PDF+attachment+is+required"
+        return RedirectResponse(error_url, status_code=303)
     
     db.execute(
-        """INSERT INTO Invoice (invoice_number, packing_slip_number, purchase_number, po_attachment_path, payment_term, invoice_date, client_id, created_by, created_at, modified_by, modified_at, status) 
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+        """INSERT INTO Invoice (invoice_number, packing_slip_number, purchase_number, po_attachment_path, pl_attachment_path, payment_term, invoice_date, client_id, created_by, created_at, modified_by, modified_at, status) 
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             invnum,
             packing_slip_number,
             purchase_number or None,
             po_attachment_path,
+            pl_attachment_path,
             payment_term or None,
             invoice_date,
             client_id or None,
@@ -177,9 +224,13 @@ async def inv_create(
 
 
 @router.get("/{inv_number}", response_class=HTMLResponse)
-def inv_detail(request: Request, inv_number: str):
+def inv_detail(request: Request, inv_number: str, error: str = ""):
     db = get_db()
-    inv = dict(db.execute("SELECT * FROM Invoice WHERE invoice_number=?", (inv_number,)).fetchone())
+    inv_row = db.execute("SELECT * FROM Invoice WHERE invoice_number=?", (inv_number,)).fetchone()
+    if not inv_row:
+        close_db()
+        return HTMLResponse("Invoice not found", status_code=404)
+    inv = dict(inv_row)
     
     client = {}
     quote = {}
@@ -236,7 +287,84 @@ def inv_detail(request: Request, inv_number: str):
         "sales_tax": sales_tax,
         "grand_total": grand_total,
         "default_payment_term": default_payment_term,
+        "error": error,
     })
+
+
+@router.post("/{inv_number}")
+async def inv_update(
+    request: Request,
+    inv_number: str,
+    inv_number_form: str = Form(""),
+    packing_slip_number: str = Form(""),
+    purchase_number: str = Form(""),
+    po_attachment: UploadFile = File(None),
+    pl_attachment: UploadFile = File(None),
+    payment_term: str = Form(""),
+    invoice_date: str = Form(...),
+    client_id: str = Form(""),
+):
+    now = datetime.now().isoformat()
+    user = request.session.get("username", "unknown")
+    
+    po_attachment_path = None
+    if po_attachment and po_attachment.filename:
+        upload_dir = Path("data/uploads/po_attachments")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        file_path = upload_dir / po_attachment.filename
+        with open(file_path, "wb") as f:
+            f.write(await po_attachment.read())
+        po_attachment_path = f"data/uploads/po_attachments/{po_attachment.filename}"
+    
+    pl_attachment_path = None
+    if pl_attachment and pl_attachment.filename:
+        upload_dir = Path("data/uploads/pl_attachments")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        file_path = upload_dir / pl_attachment.filename
+        with open(file_path, "wb") as f:
+            f.write(await pl_attachment.read())
+        pl_attachment_path = f"data/uploads/pl_attachments/{pl_attachment.filename}"
+    
+    db = get_db()
+    
+    existing_inv = db.execute("SELECT po_attachment_path, pl_attachment_path, purchase_number FROM Invoice WHERE invoice_number=?", (inv_number,)).fetchone()
+    existing_attachment = existing_inv["po_attachment_path"] if existing_inv else None
+    existing_pl_attachment = existing_inv["pl_attachment_path"] if existing_inv else None
+    existing_po = existing_inv["purchase_number"] if existing_inv else None
+    
+    if not po_attachment_path:
+        po_attachment_path = existing_attachment
+    
+    if not pl_attachment_path:
+        pl_attachment_path = existing_pl_attachment
+    
+    final_po = purchase_number or existing_po
+    
+    if not final_po and not po_attachment_path:
+        return RedirectResponse(f"/invoices/{inv_number}?error=PO+Number+or+PDF+attachment+is+required", status_code=303)
+    
+    db.execute(
+        """UPDATE Invoice SET 
+           packing_slip_number=?, purchase_number=?, po_attachment_path=?, pl_attachment_path=?, payment_term=?, 
+           invoice_date=?, client_id=?, modified_by=?, modified_at=?
+           WHERE invoice_number=?""",
+        (
+            packing_slip_number or None,
+            purchase_number or None,
+            po_attachment_path,
+            pl_attachment_path,
+            payment_term or None,
+            invoice_date,
+            client_id or None,
+            user,
+            now,
+            inv_number,
+        ),
+    )
+    db.commit()
+    log_info(f"Updated Invoice: {inv_number} by {user}")
+    close_db()
+    return RedirectResponse(f"/invoices/{inv_number}?success=1", status_code=303)
 
 
 @router.post("/{inv_number}/update-po")
@@ -254,11 +382,11 @@ async def inv_update_po(inv_number: str, purchase_number: str = Form(...)):
 @router.get("/{inv_number}/pdf")
 def inv_pdf(request: Request, inv_number: str):
     db = get_db()
-    inv = dict(
-        db.execute(
-            "SELECT * FROM Invoice WHERE invoice_number=?", (inv_number,)
-        ).fetchone()
-    )
+    inv_row = db.execute("SELECT * FROM Invoice WHERE invoice_number=?", (inv_number,)).fetchone()
+    if not inv_row:
+        close_db()
+        return HTMLResponse("Invoice not found", status_code=404)
+    inv = dict(inv_row)
     pl = {}
     if inv.get("packing_slip_number"):
         row = db.execute(
@@ -357,11 +485,47 @@ def inv_pdf(request: Request, inv_number: str):
     
     pdf_content = asyncio.run(generate_pdf())
     
+    from pypdf import PdfWriter
+    
+    merger = PdfWriter()
+    merger.append(io.BytesIO(pdf_content))
+    
+    print(f"DEBUG: inv['pl_attachment_path'] = {inv.get('pl_attachment_path')}")
+    
+    if inv.get("po_attachment_path"):
+        po_path = Path(inv["po_attachment_path"])
+        print(f"DEBUG: po_path exists = {po_path.exists()}")
+        if po_path.exists():
+            merger.append(str(po_path))
+    
+    if inv.get("pl_attachment_path"):
+        pl_path = Path(inv["pl_attachment_path"])
+        print(f"DEBUG: pl_path exists = {pl_path.exists()}")
+        if pl_path.exists():
+            merger.append(str(pl_path))
+    
+    output = io.BytesIO()
+    merger.write(output)
+    merger.close()
+    
     return Response(
-        content=pdf_content,
+        content=output.getvalue(),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{inv_number}.pdf"'},
     )
+
+
+@router.get("/{inv_number}/payment-received")
+def inv_payment_received(request: Request, inv_number: str):
+    db = get_db()
+    db.execute(
+        "UPDATE Invoice SET status='Payment Received', modified_at=? WHERE invoice_number=?",
+        (datetime.now().isoformat(), inv_number),
+    )
+    db.commit()
+    close_db()
+    log_info(f"Invoice {inv_number} marked as Payment Received")
+    return RedirectResponse(f"/invoices/{inv_number}", status_code=303)
 
 
 @router.post("/{inv_number}/send")

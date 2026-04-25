@@ -8,17 +8,27 @@
 <a href="/invoices/" class="btn">← Back</a>
 {% if invoice %}
 <a href="/invoices/{{ invoice.invoice_number }}/pdf" class="btn" target="_blank">Download PDF</a>
+{% if invoice.status == 'OPEN' or invoice.status == 'Payment Pending' %}
+<a href="/invoices/{{ invoice.invoice_number }}/payment-received" class="btn btn-primary">Payment Received</a>
+{% else %}
+<span class="btn btn-success" style="pointer-events: none;">Payment Received</span>
+{% endif %}
 {% endif %}
 {% endblock %}
 
 {% block content %}
+{% if error %}
+<div class="card" style="background: #f8d7da; border-left: 4px solid #721c24; margin-bottom: 16px;">
+  <div style="font-weight: bold; color: #721c24;">{{ error }}</div>
+</div>
+{% endif %}
 {% if success %}
 <div class="card" style="background: #d4edda; border-left: 4px solid #28a745; margin-bottom: 16px;">
   <div style="font-weight: bold; color: #28a745;">✓ Invoice saved successfully.</div>
 </div>
 {% endif %}
 
-<form method="post" action="{% if invoice %}/invoices/{{ invoice.invoice_number }}/edit{% else %}/invoices/new{% endif %}?inv_number={{ invoice_number or '' }}" enctype="multipart/form-data">
+<form method="post" action="{% if invoice %}/invoices/{{ invoice.invoice_number }}{% else %}/invoices/new{% endif %}?inv_number={{ invoice_number or '' }}" enctype="multipart/form-data">
   <input type="hidden" name="packing_slip_number" value="{{ pl_number or invoice.packing_slip_number or '' }}">
   <input type="hidden" name="client_id" value="{{ client_id or invoice.client_id or '' }}">
 
@@ -45,24 +55,25 @@
     </div>
   </div>
 
-  <div class="card" style="margin-bottom: 20px;">
+  <div style="display: flex; gap: 20px; margin-top: 30px; margin-bottom: 20px; align-items: stretch;">
+  <div class="card" style="flex: 1; display: flex; flex-direction: column; padding: 16px;">
     <h4>PO Number *</h4>
     <p style="font-size: 0.9em; color: #666; margin-bottom: 12px;">Enter PO Number OR upload attachment (PDF only)</p>
     
-    <div style="display: flex; gap: 20px; align-items: center;">
+    <div style="display: flex; gap: 20px; align-items: flex-start;">
       <div class="form-group" style="flex: 1; margin-bottom: 0;">
         <label>PO Number</label>
         <input type="text" name="purchase_number" id="purchase_number" value="{{ po_number or invoice.purchase_number or '' }}" placeholder="Enter PO Number" {% if invoice.po_attachment_path %}disabled{% endif %}>
       </div>
       
-      <div style="text-align: center; font-weight: bold; color: #999;">OR</div>
+      <div style="text-align: center; font-weight: bold; color: #999; padding-top: 24px;">OR</div>
       
       <div class="form-group" style="flex: 1; margin-bottom: 0;">
         <label>Upload PO (PDF)</label>
         <input type="file" name="po_attachment" id="po_attachment" accept=".pdf" {% if invoice.purchase_number %}disabled{% endif %}>
         {% if invoice.po_attachment_path %}
         <p style="margin-top: 8px;">
-          <a href="/{{ invoice.po_attachment_path }}" target="_blank" class="btn btn-small">View Uploaded PO</a>
+          <a href="/{{ invoice.po_attachment_path }}" target="_blank">{{ invoice.po_attachment_path.split('/')[-1] }}</a>
         </p>
         {% endif %}
       </div>
@@ -83,6 +94,21 @@
     });
     </script>
   </div>
+  
+  <div class="card" style="flex: 1; display: flex; flex-direction: column; padding: 16px;">
+    <h4>Upload Packing Slip (PDF)</h4>
+    <p style="font-size: 0.9em; color: #666; margin-bottom: 12px;">Optional</p>
+    
+    <div class="form-group" style="flex: 1;">
+      <input type="file" name="pl_attachment" id="pl_attachment" accept=".pdf">
+      {% if invoice.pl_attachment_path %}
+      <p style="margin-top: 8px;">
+        <a href="/{{ invoice.pl_attachment_path }}" target="_blank">{{ invoice.pl_attachment_path.split('/')[-1] }}</a>
+      </p>
+      {% endif %}
+    </div>
+  </div>
+</div>
 
   {% if client and client.name %}
   <div class="card" style="margin-bottom: 20px;">
@@ -157,7 +183,7 @@
   {% endif %}
 
   <div style="margin-top: 20px;">
-    <button type="submit" class="btn btn-primary">Save Invoice</button>
+    <button type="submit" class="btn btn-primary">{% if invoice %}Save Invoice{% else %}Create Invoice{% endif %}</button>
   </div>
 </form>
 {% endblock %}

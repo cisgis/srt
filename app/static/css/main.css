@@ -384,7 +384,7 @@ small { font-size: 11px; color: var(--text3); }
 
 .badge-available    { background: rgba(46,204,113, 0.18);  color: #5aed99; border: 1px solid rgba(46,204,113, 0.3); }
 .badge-pending      { background: rgba(245,166,35, 0.18);  color: #ffc957; border: 1px solid rgba(245,166,35, 0.3); }
-.badge-on-loan      { background: rgba(74,144,244, 0.18);  color: #7ab8ff; border: 1px solid rgba(74,144,244, 0.3); }
+.badge-on-rent      { background: rgba(74,144,244, 0.18);  color: #7ab8ff; border: 1px solid rgba(74,144,244, 0.3); }
 .badge-sold         { background: rgba(240,85,69, 0.15);   color: #ff8a80; border: 1px solid rgba(240,85,69, 0.25); }
 .badge-damaged      { background: rgba(240,85,69, 0.18);   color: #ffab91; border: 1px solid rgba(240,85,69, 0.3); }
 .badge-in-repair    { background: rgba(234,179,8, 0.18);   color: #ffe066; border: 1px solid rgba(234,179,8, 0.3); }

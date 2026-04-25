@@ -1,31 +1,94 @@
 {% extends "base.html" %}
 {% block title %}Internal Transactions — SRT{% endblock %}
 {% block page_title %}Internal Transactions{% endblock %}
-{% block page_sub %}Warehouse-to-warehouse moves{% endblock %}
-{% set active = "internal_activities" %}
+{% block page_sub %}Product status updates{% endblock %}
+{% set active = "txn_internal" %}
 {% block topbar_actions %}<a href="/transactions/internal/new" class="btn btn-primary">+ New Move</a>{% endblock %}
 {% block content %}
-{% if txns %}
+
+<div class="form-grid" style="grid-template-columns:150px 200px 200px; margin-bottom:16px;">
+  <div class="form-group" style="margin-bottom:0;">
+    <label>Date</label>
+    <input type="date" id="filter_date" value="{{ filters.date }}">
+  </div>
+  <div class="form-group" style="margin-bottom:0;">
+    <label>Catalog Item</label>
+    <select id="filter_parts_number">
+      <option value="">All</option>
+      {% for p in parts %}<option value="{{ p.parts_number }}" {% if filters.parts_number == p.parts_number %}selected{% endif %}>{{ p.parts_number }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="form-group" style="margin-bottom:0;">
+    <label>Serial Number</label>
+    <input type="text" id="filter_serial_number" value="{{ filters.serial_number }}" placeholder="Search...">
+  </div>
+</div>
+
 <div class="table-wrap">
 <table>
-  <thead><tr><th>ID</th><th>From Loc</th><th>To Loc</th><th>From Status</th><th>To Status</th><th>Move Date</th><th>Moved By</th><th>Reason</th></tr></thead>
-  <tbody>
-  {% for t in txns %}
-  <tr>
-    <td style="font-family:var(--mono);font-size:12px;">#{{ t.transaction_int_id }}</td>
-    <td>{{ t.from_location or "—" }}</td>
-    <td>{{ t.to_location or "—" }}</td>
-    <td>{{ t.from_status or "—" }}</td>
-    <td>{{ t.to_status or "—" }}</td>
-    <td>{{ t.move_date or "—" }}</td>
-    <td>{{ t.moved_by or "—" }}</td>
-    <td>{{ t.reason or "—" }}</td>
-  </tr>
-  {% endfor %}
+  <thead><tr><th>Date</th><th>Catalog Item</th><th>Serial Number</th><th>From Location</th><th>To Location</th><th>From Status</th><th>To Status</th><th></th></tr></thead>
+  <tbody id="txn_table">
   </tbody>
 </table>
 </div>
-{% else %}
-<div class="empty-state">No internal moves yet.</div>
-{% endif %}
+
+<div id="empty_state" class="empty-state" style="display:none;">No internal transactions found.</div>
+
+<script>
+let debounceTimer;
+
+function fetchTxns() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(async () => {
+    const params = new URLSearchParams();
+    const date = document.getElementById('filter_date').value;
+    const parts = document.getElementById('filter_parts_number').value;
+    const sn = document.getElementById('filter_serial_number').value;
+    if (date) params.append('date', date);
+    if (parts) params.append('parts_number', parts);
+    if (sn) params.append('serial_number', sn);
+    
+    try {
+      const resp = await fetch('/transactions/internal/api?' + params);
+      const data = await resp.json();
+      renderTable(data);
+    } catch(e) {
+      console.error(e);
+    }
+  }, 300);
+}
+
+function renderTable(txns) {
+  const tbody = document.getElementById('txn_table');
+  const empty = document.getElementById('empty_state');
+  
+  if (!txns || txns.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  
+  empty.style.display = 'none';
+  tbody.innerHTML = txns.map(t => `
+    <tr>
+      <td>${t.change_date || '—'}</td>
+      <td>${t.parts_number || '—'}</td>
+      <td>${t.serial_number || '—'}</td>
+      <td>${t.from_location || '—'}</td>
+      <td>${t.to_location || '—'}</td>
+      <td>${t.old_status || '—'}</td>
+      <td>${t.new_status || '—'}</td>
+      <td><a href="/transactions/internal/${t.transaction_int_id}/edit" class="btn btn-sm">Edit</a></td>
+    </tr>
+  `).join('');
+}
+
+// Event listeners
+document.getElementById('filter_date').addEventListener('change', fetchTxns);
+document.getElementById('filter_parts_number').addEventListener('change', fetchTxns);
+document.getElementById('filter_serial_number').addEventListener('input', fetchTxns);
+
+// Initial load
+fetchTxns();
+</script>
 {% endblock %}

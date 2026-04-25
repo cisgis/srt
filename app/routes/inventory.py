@@ -62,7 +62,7 @@ def inventory_overview(
             COUNT(p.serial_number) as total_products,
             SUM(CASE WHEN p.status = 'In Stock' THEN 1 ELSE 0 END) as available_count,
             SUM(CASE WHEN p.status = 'Sold' THEN 1 ELSE 0 END) as sold_count,
-            SUM(CASE WHEN p.status = 'On Loan' THEN 1 ELSE 0 END) as on_loan_count,
+            SUM(CASE WHEN p.status = 'On Rent' THEN 1 ELSE 0 END) as on_loan_count,
             SUM(CASE WHEN p.status = 'Pending Cert' THEN 1 ELSE 0 END) as pending_count,
             SUM(CASE WHEN p.status = 'Damaged' THEN 1 ELSE 0 END) as damaged_count,
             SUM(CASE WHEN p.status = 'In Repair' THEN 1 ELSE 0 END) as in_repair_count,

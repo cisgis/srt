@@ -94,8 +94,8 @@ Each stage has a "→ Create" button that pre-fills data from the previous stage
 
 ## Status Values (Product)
 - Available
-- Pending Certification
-- On Loan
+- Pending Cert
+- On Rent
 - Sold
 - Damaged
 - In Repair

@@ -1,65 +1,76 @@
 {% extends "base.html" %}
-{% block title %}New Internal Move — SRT{% endblock %}
-{% block page_title %}New Internal Move{% endblock %}
-{% block page_sub %}Relocate products between warehouses{% endblock %}
+{% block title %}{% if txn %}Edit Internal Move{% else %}New Internal Move{% endif %} — SRT{% endblock %}
+{% block page_title %}{% if txn %}Edit Internal Move{% else %}New Internal Move{% endif %}{% endblock %}
+{% block page_sub %}Update product status and location{% endblock %}
 {% set active = "txn_internal" %}
 {% block topbar_actions %}<a href="/transactions/internal/" class="btn">← Back</a>{% endblock %}
 
 {% block content %}
-<div style="max-width:700px;">
+<div style="max-width:900px;">
 <div class="card">
-<form method="post" id="int-form">
-  <input type="hidden" name="parts_json" id="parts_json" value="[]">
-  <div class="card-title">Move Details</div>
-  <div class="form-grid" style="margin-bottom:16px;">
+<form method="post" action="{% if txn %}/transactions/internal/{{ txn.transaction_int_id }}/edit{% else %}/transactions/internal/new{% endif %}">
+  <div class="card-title">Product Information</div>
+  
+  <div class="form-grid" style="grid-template-columns: 150px 1fr 1fr; margin-bottom: 16px;">
     <div class="form-group">
-      <label>From Location</label>
-      <input type="text" name="from_location" list="wh-list" placeholder="Origin warehouse">
+      <label>Date *</label>
+      <input type="date" name="change_date" value="{{ txn.change_date or today }}" required>
     </div>
     <div class="form-group">
-      <label>To Location</label>
-      <input type="text" name="to_location" list="wh-list" placeholder="Destination warehouse">
+      <label>Catalog Item *</label>
+      <select name="parts_number" id="parts_number" required onchange="loadProducts()">
+        <option value="">Select...</option>
+        {% for p in parts %}
+        <option value="{{ p.parts_number }}" {% if txn and txn.parts_number == p.parts_number %}selected{% endif %}>{{ p.parts_number }}</option>
+        {% endfor %}
+      </select>
     </div>
     <div class="form-group">
-      <label>From Status</label>
-      <input type="text" name="from_status" list="status-list" placeholder="Current status">
+      <label>Serial Number *</label>
+      <select name="serial_number" id="serial_number" required onchange="updateStatus()">
+        <option value="">Select...</option>
+      </select>
     </div>
-    <div class="form-group">
-      <label>To Status</label>
-      <input type="text" name="to_status" list="status-list" placeholder="New status">
-    </div>
-    <div class="form-group"><label>Ship Date</label><input type="date" name="move_date"></div>
-    <div class="form-group"><label>Received Date</label><input type="date" name="receive_date"></div>
-    <div class="form-group"><label>Moved By</label><input type="text" name="moved_by" placeholder="Person or carrier"></div>
-    <div class="form-group"><label>Reason</label><input type="text" name="reason"></div>
   </div>
-
-  <datalist id="status-list">
-    <option value="Available">
-    <option value="On Rent">
-    <option value="On Loan">
-    <option value="Reserved">
-    <option value="Repairing">
-    <option value="Held">
-    <option value="End of Life">
-    <option value="Sold">
-  </datalist>
-
-  <datalist id="wh-list">{% for w in warehouses %}<option value="{{ w.ship_from }}">{% endfor %}</datalist>
-
-  <div class="section-header">
-    <h2>Products to Move</h2>
-    <button type="button" class="btn btn-sm" onclick="addPart()">+ Add Product</button>
+  
+  <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr 1fr; margin-bottom: 16px;">
+    <div class="form-group">
+      <label>Current Location</label>
+      <div style="padding:8px 0; color:#1a5f7a; font-weight:bold;" id="from_location">{% if txn and txn.from_location %}{{ txn.from_location }}{% else %}—{% endif %}</div>
+    </div>
+    <div class="form-group">
+      <label>Current Status</label>
+      <div style="padding:8px 0; color:#1a5f7a; font-weight:bold;" id="current_status">{% if txn and txn.old_status %}{{ txn.old_status }}{% else %}—{% endif %}</div>
+    </div>
+    <div class="form-group">
+      <label>To Location *</label>
+      <select name="to_location" required>
+        <option value="">Select...</option>
+        {% for loc in locations %}
+        <option value="{{ loc.name }}" {% if txn and txn.to_location == loc.name %}selected{% endif %}>{{ loc.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>New Status *</label>
+      <select name="new_status" required>
+        <option value="">Select...</option>
+        <option value="In Stock" {% if txn and txn.new_status == 'In Stock' %}selected{% endif %}>In Stock</option>
+        <option value="Pending Cert" {% if txn and txn.new_status == 'Pending Cert' %}selected{% endif %}>Pending Cert</option>
+        <option value="In Repair" {% if txn and txn.new_status == 'In Repair' %}selected{% endif %}>In Repair</option>
+        <option value="Damaged" {% if txn and txn.new_status == 'Damaged' %}selected{% endif %}>Damaged</option>
+        <option value="Lost" {% if txn and txn.new_status == 'Lost' %}selected{% endif %}>Lost</option>
+      </select>
+    </div>
   </div>
-  <div class="table-wrap" style="margin-bottom:16px;">
-  <table class="line-items-table">
-    <thead><tr><th>Serial No.</th><th>Catalog</th><th>Description</th><th>Location</th><th>Status</th><th></th></tr></thead>
-    <tbody id="parts-body"></tbody>
-  </table>
+  
+  <div class="form-group">
+    <label>Notes</label>
+    <input type="text" name="notes" placeholder="Reason or additional notes" value="{{ txn.notes or '' }}">
   </div>
-
-  <div style="display:flex;gap:8px;">
-    <button type="submit" class="btn btn-primary" onclick="prepareSubmit()">Create Move</button>
+  
+  <div style="display:flex;gap:8px;margin-top:24px;">
+    <button type="submit" class="btn btn-primary">{% if txn %}Update{% else %}Save{% endif %}</button>
     <a href="/transactions/internal/" class="btn">Cancel</a>
   </div>
 </form>
@@ -67,35 +78,47 @@
 </div>
 
 <script>
-const PRODUCTS = [
+const products = [
   {% for p in products %}
-  { sn: {{ p.serial_number|tojson }}, pn: {{ p.parts_number|tojson }}, desc: {{ (p.description or "")|tojson }}, loc: {{ (p.location or "")|tojson }}, status: {{ (p.status or "")|tojson }} },
+  { sn: "{{ p.serial_number }}", pn: "{{ p.parts_number }}", status: "{{ p.status }}", loc: "{{ p.location or '' }}" },
   {% endfor %}
 ];
-let parts = [];
-function addPart() { parts.push(""); renderParts(); }
-function removePart(i) { parts.splice(i,1); renderParts(); }
-function renderParts() {
-  const tbody = document.getElementById("parts-body");
-  tbody.innerHTML = "";
-  parts.forEach((sn, i) => {
-    const prod = PRODUCTS.find(p => p.sn === sn);
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><input type="text" list="sn-list" value="${sn}" style="width:180px;"
-          onchange="parts[${i}]=this.value; renderParts()"></td>
-      <td style="font-size:11px;">${prod?.pn||""}</td>
-      <td style="font-size:11px;color:var(--text2);">${prod?.desc||""}</td>
-      <td style="font-size:11px;color:var(--text2);">${prod?.loc||""}</td>
-      <td style="font-size:11px;color:var(--text2);">${prod?.status||""}</td>
-      <td><button type="button" class="btn btn-sm btn-danger" onclick="removePart(${i})">✕</button></td>
-    `;
-    tbody.appendChild(tr);
+
+const txnProducts = [
+  {% if txn %}
+  { sn: "{{ txn.serial_number }}", pn: "{{ txn.parts_number }}", status: "{{ txn.old_status }}", loc: "{{ txn.from_location or '' }}" },
+  {% endif %}
+];
+
+function loadProducts() {
+  const pn = document.getElementById("parts_number").value;
+  const snSelect = document.getElementById("serial_number");
+  snSelect.innerHTML = '<option value="">Select...</option>';
+  
+  const allProducts = txnProducts.length > 0 ? txnProducts.concat(products.filter(p => p.pn === pn)) : products.filter(p => p.pn === pn);
+  
+  allProducts.forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p.sn;
+    opt.textContent = p.sn;
+    snSelect.appendChild(opt);
   });
 }
-function prepareSubmit() {
-  document.getElementById("parts_json").value = JSON.stringify(parts.filter(p=>p));
+
+function updateStatus() {
+  const sn = document.getElementById("serial_number").value;
+  const prod = products.find(p => p.sn === sn);
+  if (prod) {
+    document.getElementById("from_location").textContent = prod.loc || "—";
+    document.getElementById("current_status").textContent = prod.status;
+  }
 }
+
+document.addEventListener("DOMContentLoaded", function() {
+  {% if txn %}
+  loadProducts();
+  document.getElementById("serial_number").value = "{{ txn.serial_number }}";
+  {% endif %}
+});
 </script>
-<datalist id="sn-list">{% for p in products %}<option value="{{ p.serial_number }}">{% endfor %}</datalist>
 {% endblock %}

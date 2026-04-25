@@ -353,7 +353,7 @@ async def txn_ext_create(
             (tid, sn),
         )
         db.execute(
-            "UPDATE Product SET status='On Loan', modified_by=?, modified_at=? WHERE serial_number=?",
+            "UPDATE Product SET status='On Rent', modified_by=?, modified_at=? WHERE serial_number=?",
             (user, now, sn),
         )
     db.commit()
@@ -387,35 +387,72 @@ async def txn_ext_return(txn_id: int, inbound_date: str = Form(...)):
 txn_int_router = APIRouter(prefix="/transactions/internal", tags=["transactions"])
 
 
-@txn_int_router.get("/", response_class=HTMLResponse)
-def txn_int_list(request: Request):
+@txn_int_router.get("/api")
+def txn_int_api(date: str = "", parts_number: str = "", serial_number: str = ""):
     db = get_db()
-    txns = db.execute(
-        "SELECT * FROM Transaction_Internal ORDER BY move_date DESC"
-    ).fetchall()
+    query = "SELECT * FROM Transaction_Internal WHERE 1=1"
+    params = []
+    if date:
+        query += " AND change_date = ?"
+        params.append(date)
+    if parts_number:
+        query += " AND parts_number = ?"
+        params.append(parts_number)
+    if serial_number:
+        query += " AND serial_number LIKE ?"
+        params.append(f"%{serial_number}%")
+    query += " ORDER BY created_at DESC"
+    txns = db.execute(query, params).fetchall()
+    close_db()
+    return [dict(t) for t in txns]
+
+
+@txn_int_router.get("/", response_class=HTMLResponse)
+def txn_int_list(request: Request, date: str = "", parts_number: str = "", serial_number: str = ""):
+    db = get_db()
+    query = "SELECT * FROM Transaction_Internal WHERE 1=1"
+    params = []
+    if date:
+        query += " AND change_date = ?"
+        params.append(date)
+    if parts_number:
+        query += " AND parts_number = ?"
+        params.append(parts_number)
+    if serial_number:
+        query += " AND serial_number LIKE ?"
+        params.append(f"%{serial_number}%")
+    query += " ORDER BY created_at DESC"
+    txns = db.execute(query, params).fetchall()
+    
+    parts = db.execute("SELECT parts_number FROM PartNumber ORDER BY parts_number").fetchall()
     close_db()
     return templates.TemplateResponse(
-        "transactions/internal_list.html", {"request": request, "txns": txns}
+        "transactions/internal_list.html", {"request": request, "txns": txns, "parts": parts, "filters": {"date": date, "parts_number": parts_number, "serial_number": serial_number}}
     )
 
 
 @txn_int_router.get("/new", response_class=HTMLResponse)
 def txn_int_new(request: Request):
     db = get_db()
-    products = db.execute(
-        """SELECT p.serial_number, p.parts_number, pn.description, p.location, p.status 
-           FROM Product p 
-           JOIN PartNumber pn ON p.parts_number = pn.parts_number 
-           ORDER BY p.serial_number"""
+    parts = db.execute(
+        "SELECT parts_number, description FROM PartNumber ORDER BY parts_number"
     ).fetchall()
-    warehouses = db.execute("SELECT * FROM Warehouse").fetchall()
+    products = db.execute(
+        """SELECT serial_number, parts_number, status, location FROM Product 
+           WHERE status IN ('In Stock', 'Pending Cert', 'In Repair', 'Inbound in Transit', 'Returned')
+           ORDER BY parts_number, serial_number"""
+    ).fetchall()
+    locations = db.execute("SELECT name FROM Location ORDER BY name").fetchall()
     close_db()
     return templates.TemplateResponse(
         "transactions/internal_form.html",
         {
             "request": request,
+            "parts": parts,
             "products": products,
-            "warehouses": warehouses,
+            "locations": locations,
+            "today": datetime.now().strftime("%Y-%m-%d"),
+            "txn": None,
         },
     )
 
@@ -423,96 +460,154 @@ def txn_int_new(request: Request):
 @txn_int_router.post("/new")
 async def txn_int_create(
     request: Request,
-    from_location: str = Form(""),
+    parts_number: str = Form(""),
+    serial_number: str = Form(""),
+    change_date: str = Form(""),
     to_location: str = Form(""),
-    from_status: str = Form(""),
-    to_status: str = Form(""),
-    move_date: str = Form(""),
-    receive_date: str = Form(""),
-    moved_by: str = Form(""),
-    reason: str = Form(""),
+    new_status: str = Form(""),
+    notes: str = Form(""),
 ):
-    form = await request.form()
-    parts_json_raw = form.get("parts_json", "[]")
-    if hasattr(parts_json_raw, "filename"):
-        parts_json = "[]"
-    else:
-        parts_json = str(parts_json_raw) if parts_json_raw else "[]"
-    try:
-        parts_list = json.loads(parts_json)
-    except (json.JSONDecodeError, TypeError):
-        parts_list = []
-
+    if not parts_number or not serial_number or not to_location or not new_status:
+        return HTMLResponse("Parts number, serial number, to location, and new status are required", status_code=400)
+    
     now = datetime.now().isoformat()
     user = request.session.get("username", "unknown")
-
     db = get_db()
-
-    db.execute("""ALTER TABLE Transaction_Internal ADD COLUMN from_status TEXT""")
-    db.execute("""ALTER TABLE Transaction_Internal ADD COLUMN to_status TEXT""")
-
-    cur = db.execute(
+    
+    product = db.execute(
+        "SELECT * FROM Product WHERE serial_number=? AND parts_number=?", (serial_number, parts_number)
+    ).fetchone()
+    
+    if not product:
+        close_db()
+        return HTMLResponse("Product not found", status_code=404)
+    
+    old_status = product["status"]
+    old_location = product["location"]
+    
+    db.execute(
         """INSERT INTO Transaction_Internal
-        (from_location, to_location, from_status, to_status, move_date, receive_date, moved_by, reason, created_by, created_at, modified_by, modified_at)
+        (parts_number, serial_number, old_status, new_status, from_location, to_location, change_date, notes, created_by, created_at, modified_by, modified_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
-            from_location or None,
-            to_location or None,
-            from_status or None,
-            to_status or None,
-            move_date or None,
-            receive_date or None,
-            moved_by or None,
-            reason or None,
+            parts_number,
+            serial_number,
+            old_status,
+            new_status,
+            old_location,
+            to_location,
+            change_date or now[:10],
+            notes or None,
             user,
             now,
             user,
             now,
         ),
     )
-    tid = cur.lastrowid
-
-    change_date = move_date or now[:10]
-
-    for sn in parts_list:
-        db.execute(
-            "INSERT INTO Transaction_Internal_Items (transaction_int_id, serial_number) VALUES (?,?)",
-            (tid, sn),
-        )
-
-        product = db.execute(
-            "SELECT * FROM Product WHERE serial_number=?", (sn,)
-        ).fetchone()
-
-        if product:
-            new_loc = to_location if to_location else product["location"]
-            new_status = to_status if to_status else product["status"]
-
-            db.execute(
-                "UPDATE Product SET location=?, status=?, modified_by=?, modified_at=? WHERE serial_number=?",
-                (new_loc, new_status, user, now, sn),
-            )
-
-            if (to_location and to_location != product["location"]) or (
-                to_status and to_status != product["status"]
-            ):
-                db.execute(
-                    """INSERT INTO Product_Lifecycle 
-                    (serial_number, change_date, old_location, new_location, old_status, new_status, transaction_type, transaction_id)
-                    VALUES (?,?,?,?,?,?,?,?)""",
-                    (
-                        sn,
-                        change_date,
-                        product["location"],
-                        new_loc,
-                        product["status"],
-                        new_status,
-                        "INTERNAL",
-                        tid,
-                    ),
-                )
-
+    
+    db.execute(
+        "UPDATE Product SET location=?, status=?, modified_by=?, modified_at=? WHERE serial_number=?",
+        (to_location, new_status, user, now, serial_number),
+    )
+    
+    db.execute(
+        """INSERT INTO Product_Lifecycle 
+        (serial_number, change_date, old_location, new_location, old_status, new_status, transaction_type)
+        VALUES (?,?,?,?,?,?,?)""",
+        (serial_number, change_date or now[:10], old_location, to_location, old_status, new_status, "INTERNAL"),
+    )
+    
     db.commit()
     close_db()
-    log_info(f"Created Transaction_Internal ID {tid} by {user}")
+    log_info(f"Created Transaction_Internal for {serial_number} by {user}")
+    return RedirectResponse("/transactions/internal/", status_code=303)
+
+
+@txn_int_router.get("/{txn_id}/edit", response_class=HTMLResponse)
+def txn_int_edit(request: Request, txn_id: int):
+    db = get_db()
+    txn = db.execute(
+        "SELECT * FROM Transaction_Internal WHERE transaction_int_id=?", (txn_id,)
+    ).fetchone()
+    if not txn:
+        close_db()
+        return HTMLResponse("Transaction not found", status_code=404)
+    
+    parts = db.execute("SELECT parts_number, description FROM PartNumber ORDER BY parts_number").fetchall()
+    products = db.execute(
+        """SELECT serial_number, parts_number, status, location FROM Product 
+           WHERE status IN ('In Stock', 'Pending Cert', 'In Repair', 'Inbound in Transit', 'Returned')
+           ORDER BY parts_number, serial_number"""
+    ).fetchall()
+    locations = db.execute("SELECT name FROM Location ORDER BY name").fetchall()
+    close_db()
+    
+    return templates.TemplateResponse(
+        "transactions/internal_form.html",
+        {
+            "request": request,
+            "parts": parts,
+            "products": products,
+            "locations": locations,
+            "today": datetime.now().strftime("%Y-%m-%d"),
+            "txn": dict(txn),
+        },
+    )
+
+
+@txn_int_router.post("/{txn_id}/edit")
+async def txn_int_update(
+    request: Request,
+    txn_id: int,
+    parts_number: str = Form(""),
+    serial_number: str = Form(""),
+    change_date: str = Form(""),
+    to_location: str = Form(""),
+    new_status: str = Form(""),
+    notes: str = Form(""),
+):
+    if not parts_number or not serial_number or not to_location or not new_status:
+        return HTMLResponse("Parts number, serial number, to location, and new status are required", status_code=400)
+    
+    now = datetime.now().isoformat()
+    user = request.session.get("username", "unknown")
+    db = get_db()
+    
+    txn = db.execute(
+        "SELECT * FROM Transaction_Internal WHERE transaction_int_id=?", (txn_id,)
+    ).fetchone()
+    
+    if not txn:
+        close_db()
+        return HTMLResponse("Transaction not found", status_code=404)
+    
+    txn = dict(txn)
+    
+    db.execute(
+        """UPDATE Transaction_Internal SET
+        parts_number=?, serial_number=?, old_status=?, new_status=?, from_location=?, to_location=?, change_date=?, notes=?, modified_by=?, modified_at=?
+        WHERE transaction_int_id=?""",
+        (
+            parts_number,
+            serial_number,
+            txn.get("old_status"),
+            new_status,
+            txn.get("from_location"),
+            to_location,
+            change_date or now[:10],
+            notes or None,
+            user,
+            now,
+            txn_id,
+        ),
+    )
+    
+    db.execute(
+        "UPDATE Product SET location=?, status=?, modified_by=?, modified_at=? WHERE serial_number=?",
+        (to_location, new_status, user, now, serial_number),
+    )
+    
+    db.commit()
+    close_db()
+    log_info(f"Updated Transaction_Internal ID {txn_id} by {user}")
     return RedirectResponse("/transactions/internal/", status_code=303)

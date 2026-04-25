@@ -96,7 +96,7 @@
         {% set s = p.status or "" %}
         {% if s == "In Stock" %}<span class="badge badge-available">{{ s }}</span>
         {% elif s == "Pending Cert" %}<span class="badge badge-pending">{{ s }}</span>
-        {% elif s == "On Loan" %}<span class="badge badge-on-loan">{{ s }}</span>
+        {% elif s == "On Rent" %}<span class="badge badge-on-rent">{{ s }}</span>
         {% elif s == "Sold" %}<span class="badge badge-sold">{{ s }}</span>
         {% elif s == "Damaged" %}<span class="badge badge-damaged">{{ s }}</span>
         {% elif s == "In Repair" %}<span class="badge badge-in-repair">{{ s }}</span>

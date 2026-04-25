@@ -59,7 +59,7 @@ document.getElementById('filter-vendor').addEventListener('change', function() {
       <th>Total</th>
       <th>Available</th>
       <th>Sold</th>
-      <th>On Loan</th>
+      <th>On Rent</th>
       <th>Pending Cert</th>
       <th>Damaged</th>
       <th>In Repair</th>
@@ -89,7 +89,7 @@ document.getElementById('filter-vendor').addEventListener('change', function() {
       </td>
       <td>
         {% if pn.on_loan_count > 0 %}
-        <span class="badge badge-on-loan">{{ pn.on_loan_count }}</span>
+        <span class="badge badge-on-rent">{{ pn.on_loan_count }}</span>
         {% else %}{{ pn.on_loan_count or 0 }}{% endif %}
       </td>
       <td>

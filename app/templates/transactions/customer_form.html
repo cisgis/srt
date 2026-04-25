@@ -76,7 +76,7 @@ function renderParts() {
   });
 }
 function statusClass(s) {
-  const m = {"Available":"badge-available","On Loan":"badge-on-loan","Sold":"badge-sold","Damaged":"badge-damaged","In Repair":"badge-in-repair","Pending Certification":"badge-pending","Lost":"badge-lost","Retired / Decommissioned":"badge-retired"};
+  const m = {"Available":"badge-available","On Rent":"badge-on-rent","Sold":"badge-sold","Damaged":"badge-damaged","In Repair":"badge-in-repair","Pending Cert":"badge-pending","Lost":"badge-lost","Retired / Decommissioned":"badge-retired"};
   return m[s]||"";
 }
 function prepareSubmit() {

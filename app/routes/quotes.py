@@ -24,9 +24,12 @@ async def get_pdf_browser():
     global _pdf_browser, _pdf_playwright
     from playwright.async_api import async_playwright
 
-    if _pdf_browser is None or not _pdf_browser.is_connected():
+    if _pdf_browser is None:
         _pdf_playwright = await async_playwright().start()
-        _pdf_browser = await _pdf_playwright.chromium.launch()
+        _pdf_browser = await _pdf_playwright.chromium.launch(headless=True)
+    elif not _pdf_browser.is_connected():
+        _pdf_playwright = await async_playwright().start()
+        _pdf_browser = await _pdf_playwright.chromium.launch(headless=True)
     return _pdf_browser
 
 

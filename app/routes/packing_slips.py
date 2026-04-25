@@ -62,7 +62,7 @@ def pl_new(
                 }
             )
 
-            query = "SELECT serial_number, location, status FROM Product WHERE parts_number=? AND status IN ('In Stock', 'Processing / Fulfillment')"
+            query = "SELECT serial_number, location, status FROM Product WHERE parts_number=? AND status IN ('In Stock', 'Inbound in Transit')"
             params = [parts_number]
             if yard:
                 query += " AND location=?"
@@ -213,8 +213,11 @@ def pl_detail(request: Request, pl_number: str):
         current_sn = item["serial_number"]
         
         prods = db.execute(
-            "SELECT serial_number, location, status FROM Product WHERE parts_number=? AND (status IN ('In Stock', 'Processing / Fulfillment', 'On Loan') OR serial_number=?) ORDER BY location, serial_number",
-            (parts_number, current_sn),
+            """SELECT p.serial_number, p.location, p.status FROM Product p
+            LEFT JOIN Packing_Slip_Items pli ON p.serial_number = pli.serial_number AND pli.packing_slip_number = ?
+            WHERE p.parts_number=? AND (p.status = 'In Stock' OR pli.packing_slip_number = ?)
+            ORDER BY p.location, p.serial_number""",
+            (pl_number, parts_number, pl_number),
         ).fetchall()
         
         products_by_status = {}
@@ -283,8 +286,11 @@ def pl_edit(request: Request, pl_number: str, success: str = ""):
         current_sn = item["serial_number"]
         
         prods = db.execute(
-            "SELECT serial_number, location, status FROM Product WHERE parts_number=? AND (status IN ('In Stock', 'Processing / Fulfillment', 'On Loan') OR serial_number=?) ORDER BY location, serial_number",
-            (parts_number, current_sn),
+            """SELECT p.serial_number, p.location, p.status FROM Product p
+            LEFT JOIN Packing_Slip_Items pli ON p.serial_number = pli.serial_number AND pli.packing_slip_number = ?
+            WHERE p.parts_number=? AND (p.status = 'In Stock' OR pli.packing_slip_number = ?)
+            ORDER BY p.location, p.serial_number""",
+            (pl_number, parts_number, pl_number),
         ).fetchall()
         
         products_by_status = {}
@@ -433,7 +439,7 @@ def pl_mark_shipped(request: Request, pl_number: str):
     now = datetime.now().isoformat()
     for item in items:
         db.execute(
-            "UPDATE Product SET status='On Loan', modified_by=?, modified_at=? WHERE serial_number=?",
+            "UPDATE Product SET status='On Rent', modified_by=?, modified_at=? WHERE serial_number=?",
             (user, now, item["serial_number"]),
         )
     
@@ -480,14 +486,27 @@ def pl_create_invoice(request: Request, pl_number: str):
 
 
 _pdf_browser = None
+_pdf_lock = None
+
+
+def _get_pdf_lock():
+    global _pdf_lock
+    if _pdf_lock is None:
+        import threading
+        _pdf_lock = threading.Lock()
+    return _pdf_lock
 
 
 async def _get_pdf_browser():
     global _pdf_browser
+    from playwright.async_api import async_playwright
+
     if _pdf_browser is None:
-        from playwright.async_api import async_playwright
         p = await async_playwright().start()
-        _pdf_browser = await p.chromium.launch()
+        _pdf_browser = await p.chromium.launch(headless=True)
+    elif not _pdf_browser.is_connected():
+        p = await async_playwright().start()
+        _pdf_browser = await p.chromium.launch(headless=True)
     return _pdf_browser
 
 
@@ -512,7 +531,7 @@ def pl_pdf(pl_number: str):
         pl_items = [
             dict(r)
             for r in db.execute(
-                """SELECT pli.*, pn.description 
+                """SELECT pli.*, pn.description
                 FROM Packing_Slip_Items pli 
                 JOIN PartNumber pn ON pli.parts_number=pn.parts_number
                 WHERE pli.packing_slip_number=?""",
@@ -553,20 +572,20 @@ def pl_pdf(pl_number: str):
         html_content = templates.get_template("packing_slips/pdf.html").render(context)
         
         import asyncio
-        from playwright.async_api import async_playwright
         
         async def generate_pdf():
             browser = await _get_pdf_browser()
+            if browser is None:
+                raise Exception("Failed to get PDF browser")
             page = await browser.new_page()
-            await page.set_content(html_content)
-            await page.wait_for_load_state("networkidle")
-            pdf = await page.pdf(
+            await page.set_content(html_content, wait_until="domcontentloaded", timeout=30000)
+            pdf_content = await page.pdf(
                 format="Letter",
                 print_background=True,
                 display_header_footer=False,
             )
             await page.close()
-            return pdf
+            return pdf_content
         
         pdf_content = asyncio.run(generate_pdf())
         
@@ -581,8 +600,3 @@ def pl_pdf(pl_number: str):
         import traceback
         traceback.print_exc()
         return HTMLResponse(f"Error generating PDF: {e}", status_code=500)
-    
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return Response(f"Error: {e}", status_code=500)
