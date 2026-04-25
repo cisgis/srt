@@ -48,8 +48,8 @@ examples/
 !env.example
 
 # ── Database (local dev data) ───────────────────────────────
-*.db-shm
-*.db-wal
+/data/*.db-shm
+/data/*.db-wal
 
 # ── Logs ────────────────────────────────────────────────────
 *.log
